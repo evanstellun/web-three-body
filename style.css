@@ -1,0 +1,645 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #000000;
+    color: #ffffff;
+    height: 100vh;
+    touch-action: none;
+}
+
+#container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#simulationCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#quotes-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    background: rgba(0, 0, 0, 0.7);
+    overflow: hidden;
+    z-index: 50;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    border-bottom: 1px solid #333333;
+}
+
+#quote {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    color: #00ccff;
+    font-size: 16px;
+    line-height: 60px;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+    padding: 0 20px;
+    box-sizing: border-box;
+    text-shadow: 0 0 5px rgba(0, 204, 255, 0.7);
+    font-family: 'Courier New', monospace;
+}
+
+#info {
+    position: absolute;
+    top: 70px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #cccccc;
+    padding: 15px;
+    border-radius: 5px;
+    z-index: 100;
+    font-size: 14px;
+    max-width: 300px;
+    border: 1px solid #333333;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+#info h3 {
+    margin-top: 0;
+    color: #00ccff;
+    border-bottom: 1px solid #333333;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+    font-weight: normal;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#info p {
+    margin: 8px 0;
+    line-height: 1.4;
+}
+
+#toggle-info {
+    background: none;
+    border: none;
+    color: #00ccff;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#collision-message {
+    position: absolute;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 0, 0, 0.2);
+    color: #ff3333;
+    padding: 15px 30px;
+    border-radius: 5px;
+    font-size: 18px;
+    display: none;
+    z-index: 200;
+    border: 1px solid #ff3333;
+    text-align: center;
+    max-width: 90%;
+    font-family: 'Courier New', monospace;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+#temperature-message {
+    position: absolute;
+    top: 130px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 165, 0, 0.2);
+    color: #ff9900;
+    padding: 15px 30px;
+    border-radius: 5px;
+    font-size: 18px;
+    display: none;
+    z-index: 200;
+    border: 1px solid #ff9900;
+    text-align: center;
+    max-width: 90%;
+    font-family: 'Courier New', monospace;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* 新增：模拟区域容器 */
+#simulation-container {
+    position: absolute;
+    top: 60px;
+    /* 为quotes-container留出空间 */
+    left: 0;
+    width: 100%;
+    height: calc(100% - 250px);
+    /* 为控制面板留出空间 */
+}
+
+/* 新增：控制面板容器 */
+#controls-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    border-top: 1px solid #333333;
+    z-index: 150;
+    padding: 15px;
+    max-height: 50vh;
+    overflow-y: auto;
+    height: 250px;
+    /* 固定高度 */
+}
+
+#controls-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #333333;
+}
+
+#controls-header h3 {
+    margin: 0;
+    color: #00ccff;
+    font-size: 20px;
+    font-weight: normal;
+}
+
+#toggle-controls {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid #333333;
+    color: #00ccff;
+    border-radius: 3px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+}
+
+#toggle-controls:hover {
+    background: rgba(0, 50, 100, 0.5);
+}
+
+#controls-content {
+    display: none;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.celestial-body {
+    background: rgba(20, 20, 20, 0.8);
+    border-radius: 5px;
+    padding: 12px;
+    border: 1px solid #333333;
+}
+
+.celestial-body strong {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 16px;
+    color: #00ccff;
+    text-align: center;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #333333;
+    font-weight: normal;
+}
+
+.celestial-body div {
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+label {
+    display: inline-block;
+    width: 70px;
+    font-size: 14px;
+    color: #999999;
+}
+
+input {
+    flex: 1;
+    padding: 8px;
+    background: rgba(30, 30, 30, 0.8);
+    border: 1px solid #333333;
+    border-radius: 3px;
+    color: #cccccc;
+    font-size: 14px;
+}
+
+input:focus {
+    outline: none;
+    border-color: #00ccff;
+    box-shadow: 0 0 5px rgba(0, 204, 255, 0.5);
+}
+
+#buttons-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 15px;
+    border-top: 1px solid #333333;
+}
+
+.main-buttons {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+}
+
+.io-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+button {
+    padding: 12px 15px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #333333;
+    border-radius: 3px;
+    color: #00ccff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+button:hover {
+    background: rgba(0, 50, 100, 0.5);
+    box-shadow: 0 0 8px rgba(0, 204, 255, 0.5);
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+#speed-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: rgba(20, 20, 20, 0.8);
+    padding: 15px;
+    border-radius: 5px;
+    margin-top: 15px;
+    border: 1px solid #333333;
+}
+
+#controls-container {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+#speed-control::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #00ccff;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 204, 255, 0.8);
+}
+
+#speed-value {
+    min-width: 50px;
+    text-align: center;
+    color: #00ccff;
+    font-family: 'Courier New', monospace;
+}
+
+/* 天体信息面板 */
+#body-info {
+    position: absolute;
+    top: 320px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #cccccc;
+    padding: 15px;
+    border-radius: 5px;
+    z-index: 100;
+    font-size: 14px;
+    max-width: 300px;
+    border: 1px solid #333333;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    display: none;
+}
+
+#body-info h3 {
+    margin-top: 0;
+    color: #00ccff;
+    border-bottom: 1px solid #333333;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+    font-weight: normal;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#body-info p {
+    margin: 8px 0;
+    line-height: 1.4;
+}
+
+#body-info button {
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px;
+}
+
+/* 隐藏文件输入框 */
+#fileInput {
+    display: none;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+    #controls-content {
+        grid-template-columns: 1fr;
+    }
+
+    #quote {
+        font-size: 14px;
+        line-height: 50px;
+        height: 50px;
+    }
+
+    #quotes-container {
+        height: 50px;
+    }
+
+    #info,
+    #body-info {
+        top: 60px;
+        right: 10px;
+        padding: 10px;
+        font-size: 12px;
+        max-width: 200px;
+    }
+
+    #collision-message,
+    #temperature-message {
+        font-size: 14px;
+        padding: 10px 15px;
+        top: 60px;
+    }
+
+    .celestial-body div {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    label {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+
+    #buttons-container {
+        flex-direction: column;
+    }
+
+    .main-buttons,
+    .io-buttons {
+        width: 100%;
+    }
+
+    button {
+        width: 100%;
+    }
+
+    #simulation-container {
+        height: calc(100% - 300px);
+        /* 移动端调整高度 */
+    }
+
+    #controls-container {
+        height: 300px;
+        /* 移动端调整高度 */
+    }
+}
+
+/* 隐藏滚动条 */
+#controls-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+#controls-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+#controls-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 204, 255, 0.5);
+    border-radius: 4px;
+}
+
+/* 文明历史按钮 */
+#civilization-history-btn {
+    position: absolute;
+    top: 320px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #00ccff;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: 1px solid #333333;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    z-index: 100;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s ease;
+}
+
+#civilization-history-btn:hover {
+    background: rgba(0, 50, 100, 0.5);
+    box-shadow: 0 0 8px rgba(0, 204, 255, 0.5);
+}
+
+/* 文明历史模态框 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.modal-content {
+    background-color: #000;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #333;
+    width: 80%;
+    max-width: 800px;
+    max-height: 80vh;
+    border-radius: 5px;
+    position: relative;
+    color: #fff;
+}
+
+.modal-content h2 {
+    color: #00ccff;
+    margin-top: 0;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    position: absolute;
+    right: 20px;
+    top: 10px;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: #fff;
+}
+
+.modal-body {
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-top: 20px;
+}
+
+#civilization-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: #ccc;
+}
+
+#civilization-history-table th,
+#civilization-history-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #333;
+}
+
+#civilization-history-table th {
+    background-color: rgba(0, 50, 100, 0.5);
+    color: #00ccff;
+    position: sticky;
+    top: 0;
+}
+
+#civilization-history-table tr:hover {
+    background-color: rgba(0, 204, 255, 0.1);
+}
+
+/* 滚动条样式 */
+.modal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 204, 255, 0.5);
+    border-radius: 4px;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    #civilization-history-btn {
+        top: 280px;
+        left: 10px;
+        font-size: 12px;
+        padding: 8px 12px;
+    }
+
+    .modal-content {
+        width: 95%;
+        margin: 10% auto;
+        padding: 15px;
+    }
+
+    #civilization-history-table th,
+    #civilization-history-table td {
+        padding: 8px;
+        font-size: 12px;
+    }
+}
+
+/* 在style.css中添加或修改以下样式 */
+.speed-control-wrapper {
+    flex: 1;
+    position: relative;
+}
+
+.speed-scale {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    padding: 0 10px;
+}
+
+.speed-scale-min,
+.speed-scale-mid,
+.speed-scale-max {
+    font-size: 12px;
+    color: #999999;
+    position: absolute;
+}
+
+.speed-scale-min {
+    left: 0;
+    text-align: left;
+}
+
+.speed-scale-mid {
+    left: 25%; /* 四等分点位置 */
+    transform: translateX(-50%);
+    text-align: center;
+}
+
+.speed-scale-max {
+    right: 0;
+    text-align: right;
+}
+
+#speed-container input[type="range"] {
+    width: 100%;
+    margin: 0;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .speed-scale {
+        padding: 0 5px;
+    }
+
+    .speed-scale-min,
+    .speed-scale-mid,
+    .speed-scale-max {
+        font-size: 10px;
+    }
+}
