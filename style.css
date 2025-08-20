@@ -616,7 +616,8 @@ button:active {
 }
 
 .speed-scale-mid {
-    left: 25%; /* 四等分点位置 */
+    left: 25%;
+    /* 四等分点位置 */
     transform: translateX(-50%);
     text-align: center;
 }
@@ -633,13 +634,66 @@ button:active {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+    #speed-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 10px;
+    }
+
+    .speed-control-wrapper {
+        width: 100%;
+    }
+
     .speed-scale {
-        padding: 0 5px;
+        padding: 0 10px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* 优化移动端滑块显示 */
+    @media (max-width: 768px) {
+        #speed-control {
+            width: 100%;
+            height: 30px;
+            margin: 10px 0;
+        }
+
+        #speed-control::-webkit-slider-thumb {
+            width: 25px;
+            height: 25px;
+        }
+
+        #speed-control::-moz-range-thumb {
+            width: 25px;
+            height: 25px;
+        }
+    }
+
+    #speed-value {
+        text-align: center;
+        font-size: 16px;
     }
 
     .speed-scale-min,
     .speed-scale-mid,
     .speed-scale-max {
-        font-size: 10px;
+        position: relative;
+        display: inline-block;
+        transform: none;
+    }
+
+    .speed-scale-min {
+        text-align: left;
+    }
+
+    .speed-scale-mid {
+        text-align: center;
+        left: 0;
+        transform: none;
+    }
+
+    .speed-scale-max {
+        text-align: right;
     }
 }

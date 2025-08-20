@@ -226,19 +226,19 @@ function recordCivilization(destructionMethod, existenceTime) {
         if (data) {
             history = JSON.parse(data);
         }
-        
+
         // 添加新的文明记录
         history.push({
             id: civilizationId,
             destruction: destructionMethod,
             existenceTime: existenceTime.toFixed(2)
         });
-        
+
         // 更新当前ID
         history.push({
             currentId: civilizationId
         });
-        
+
         localStorage.setItem('civilizationHistory', JSON.stringify(history));
     } catch (e) {
         console.error("Error recording civilization:", e);
@@ -253,7 +253,7 @@ function randomizeBodies() {
     if (!lastCivilizationRecorded && time > 0) {
         recordCivilization("进入了持久的恒纪元，繁荣昌盛地延续了下去……", time - civilizationStartTime);
     }
-    
+
     // 重置文明计数器
     civilizationStartTime = time;
     lastCivilizationRecorded = false; // 这个标志需要重置为false
@@ -323,7 +323,7 @@ function randomizeBodies() {
     centerBody = null;
     selectedBody = null;
     document.getElementById('body-info').style.display = 'none';
-    
+
     // 重置温度消息，确保新文明可以触发温度警告
     lastTemperatureMessage = "";
 
@@ -395,7 +395,7 @@ function checkCollisions() {
                 } else {
                     message = `${body1.name}和${body2.name}相撞`;
                 }
-                
+
                 // 添加文明编号
                 const civilizationMessage = `第${civilizationId}号文明历程中，${message}`;
                 showCollisionMessage(civilizationMessage);
@@ -492,13 +492,13 @@ function showTemperatureMessage(message) {
     if (message === lastTemperatureMessage) return;
 
     lastTemperatureMessage = message;
-    
+
     // 添加文明编号到消息
     let civilizationMessage = `第${civilizationId}号文明${message}`;
     const temperatureMessage = document.getElementById('temperature-message');
     temperatureMessage.textContent = civilizationMessage;
     temperatureMessage.style.display = 'block';
-    
+
     // 记录文明毁灭 - 但需要确保文明存在了一定时间才记录
     const existenceTime = time - civilizationStartTime;
     if (!lastCivilizationRecorded && existenceTime > 0.1) { // 至少存在0.1个时间单位才记录
@@ -942,17 +942,17 @@ function showQuote() {
 function showCivilizationHistory() {
     const modal = document.getElementById('civilization-history-modal');
     const tableBody = document.getElementById('civilization-history-body');
-    
+
     // 清空表格
     tableBody.innerHTML = '';
-    
+
     try {
         const data = localStorage.getItem('civilizationHistory');
         if (data) {
             const history = JSON.parse(data);
             // 过滤掉currentId记录，只显示文明记录
             const civilizations = history.filter(entry => entry.id !== undefined && entry.destruction !== undefined);
-            
+
             civilizations.forEach(entry => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -966,9 +966,9 @@ function showCivilizationHistory() {
     } catch (e) {
         console.error("Error loading civilization history:", e);
     }
-    
+
     modal.style.display = 'block';
-    
+
     // 自动滚动到最新记录
     const modalBody = modal.querySelector('.modal-body');
     setTimeout(() => {
@@ -1174,7 +1174,7 @@ canvas.addEventListener('touchend', (e) => {
 document.getElementById('speed-control').addEventListener('input', (e) => {
     // 分段均匀映射
     const sliderValue = parseFloat(e.target.value); // 0-100
-    
+
     if (sliderValue <= 25) {
         // 前1/4部分: 0.1到1倍速的均匀映射
         speedFactor = 0.1 + (sliderValue / 25) * 0.9;
@@ -1182,7 +1182,7 @@ document.getElementById('speed-control').addEventListener('input', (e) => {
         // 后3/4部分: 1到300倍速的均匀映射
         speedFactor = 1 + ((sliderValue - 25) / 75) * 299;
     }
-    
+
     document.getElementById('speed-value').textContent = speedFactor.toFixed(1) + 'x';
 });
 
@@ -1351,13 +1351,32 @@ document.getElementById('resetBtn').addEventListener('click', resetSimulation);
 // 文明历史按钮事件
 document.getElementById('civilization-history-btn').addEventListener('click', showCivilizationHistory);
 document.querySelector('.close').addEventListener('click', closeCivilizationHistory);
-window.addEventListener('click', function(event) {
+window.addEventListener('click', function (event) {
     const modal = document.getElementById('civilization-history-modal');
     if (event.target === modal) {
         closeCivilizationHistory();
     }
 });
+// 清除文明历史记录
+// 清除文明历史记录
+function clearCivilizationHistory() {
+    try {
+        localStorage.removeItem('civilizationHistory');
+        showCivilizationHistory(); // 重新加载显示（此时为空）
+    } catch (e) {
+        console.error("Error clearing civilization history:", e);
+        alert('清除历史记录失败');
+    }
+}
 
+// 确保元素存在后再绑定事件
+const clearHistoryBtn = document.getElementById('clear-history-btn');
+if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener('click', clearCivilizationHistory);
+}
+
+// 在适当的事件监听器绑定位置添加以下代码
+document.getElementById('clear-history-btn').addEventListener('click', clearCivilizationHistory);
 // 初始化并启动模拟
 civilizationId = getNextCivilizationId();
 randomizeBodies(); // 默认随机生成
