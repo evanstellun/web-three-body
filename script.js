@@ -125,77 +125,58 @@ function initBodies() {
 }
 
 // 更新UI控件值
+// 更新UI控件值
 function updateUI() {
-    document.getElementById('alpha-mass').value = bodies[0].mass;
-    document.getElementById('alpha-x').value = bodies[0].x;
-    document.getElementById('alpha-y').value = bodies[0].y;
-    document.getElementById('alpha-z').value = bodies[0].z;
-    document.getElementById('alpha-vx').value = bodies[0].vx;
-    document.getElementById('alpha-vy').value = bodies[0].vy;
-    document.getElementById('alpha-vz').value = bodies[0].vz;
-
-    document.getElementById('beta-mass').value = bodies[1].mass;
-    document.getElementById('beta-x').value = bodies[1].x;
-    document.getElementById('beta-y').value = bodies[1].y;
-    document.getElementById('beta-z').value = bodies[1].z;
-    document.getElementById('beta-vx').value = bodies[1].vx;
-    document.getElementById('beta-vy').value = bodies[1].vy;
-    document.getElementById('beta-vz').value = bodies[1].vz;
-
-    document.getElementById('gamma-mass').value = bodies[2].mass;
-    document.getElementById('gamma-x').value = bodies[2].x;
-    document.getElementById('gamma-y').value = bodies[2].y;
-    document.getElementById('gamma-z').value = bodies[2].z;
-    document.getElementById('gamma-vx').value = bodies[2].vx;
-    document.getElementById('gamma-vy').value = bodies[2].vy;
-    document.getElementById('gamma-vz').value = bodies[2].vz;
-
-    document.getElementById('p-mass').value = bodies[3].mass;
-    document.getElementById('p-x').value = bodies[3].x;
-    document.getElementById('p-y').value = bodies[3].y;
-    document.getElementById('p-z').value = bodies[3].z;
-    document.getElementById('p-vx').value = bodies[3].vx;
-    document.getElementById('p-vy').value = bodies[3].vy;
-    document.getElementById('p-vz').value = bodies[3].vz;
+    // 为每个存在的天体更新UI
+    const bodyNames = ['alpha', 'beta', 'gamma', 'p'];
+    
+    for (let i = 0; i < Math.min(bodies.length, bodyNames.length); i++) {
+        const name = bodyNames[i];
+        const body = bodies[i];
+        
+        const massEl = document.getElementById(`${name}-mass`);
+        const xEl = document.getElementById(`${name}-x`);
+        const yEl = document.getElementById(`${name}-y`);
+        const zEl = document.getElementById(`${name}-z`);
+        const vxEl = document.getElementById(`${name}-vx`);
+        const vyEl = document.getElementById(`${name}-vy`);
+        const vzEl = document.getElementById(`${name}-vz`);
+        
+        if (massEl) massEl.value = body.mass;
+        if (xEl) xEl.value = body.x;
+        if (yEl) yEl.value = body.y;
+        if (zEl) zEl.value = body.z;
+        if (vxEl) vxEl.value = body.vx;
+        if (vyEl) vyEl.value = body.vy;
+        if (vzEl) vzEl.value = body.vz;
+    }
 }
 
 // 从UI更新天体参数
 function updateBodies() {
-    bodies[0].mass = parseFloat(document.getElementById('alpha-mass').value);
-    bodies[0].x = parseFloat(document.getElementById('alpha-x').value);
-    bodies[0].y = parseFloat(document.getElementById('alpha-y').value);
-    bodies[0].z = parseFloat(document.getElementById('alpha-z').value);
-    bodies[0].vx = parseFloat(document.getElementById('alpha-vx').value);
-    bodies[0].vy = parseFloat(document.getElementById('alpha-vy').value);
-    bodies[0].vz = parseFloat(document.getElementById('alpha-vz').value);
+    const bodyNames = ['alpha', 'beta', 'gamma', 'p'];
+    
+    for (let i = 0; i < Math.min(bodies.length, bodyNames.length); i++) {
+        const name = bodyNames[i];
+        
+        const massEl = document.getElementById(`${name}-mass`);
+        const xEl = document.getElementById(`${name}-x`);
+        const yEl = document.getElementById(`${name}-y`);
+        const zEl = document.getElementById(`${name}-z`);
+        const vxEl = document.getElementById(`${name}-vx`);
+        const vyEl = document.getElementById(`${name}-vy`);
+        const vzEl = document.getElementById(`${name}-vz`);
+        
+        if (massEl) bodies[i].mass = parseFloat(massEl.value) || bodies[i].mass;
+        if (xEl) bodies[i].x = parseFloat(xEl.value) || bodies[i].x;
+        if (yEl) bodies[i].y = parseFloat(yEl.value) || bodies[i].y;
+        if (zEl) bodies[i].z = parseFloat(zEl.value) || bodies[i].z;
+        if (vxEl) bodies[i].vx = parseFloat(vxEl.value) || bodies[i].vx;
+        if (vyEl) bodies[i].vy = parseFloat(vyEl.value) || bodies[i].vy;
+        if (vzEl) bodies[i].vz = parseFloat(vzEl.value) || bodies[i].vz;
 
-    bodies[1].mass = parseFloat(document.getElementById('beta-mass').value);
-    bodies[1].x = parseFloat(document.getElementById('beta-x').value);
-    bodies[1].y = parseFloat(document.getElementById('beta-y').value);
-    bodies[1].z = parseFloat(document.getElementById('beta-z').value);
-    bodies[1].vx = parseFloat(document.getElementById('beta-vx').value);
-    bodies[1].vy = parseFloat(document.getElementById('beta-vy').value);
-    bodies[1].vz = parseFloat(document.getElementById('beta-vz').value);
-
-    bodies[2].mass = parseFloat(document.getElementById('gamma-mass').value);
-    bodies[2].x = parseFloat(document.getElementById('gamma-x').value);
-    bodies[2].y = parseFloat(document.getElementById('gamma-y').value);
-    bodies[2].z = parseFloat(document.getElementById('gamma-z').value);
-    bodies[2].vx = parseFloat(document.getElementById('gamma-vx').value);
-    bodies[2].vy = parseFloat(document.getElementById('gamma-vy').value);
-    bodies[2].vz = parseFloat(document.getElementById('gamma-vz').value);
-
-    bodies[3].mass = parseFloat(document.getElementById('p-mass').value);
-    bodies[3].x = parseFloat(document.getElementById('p-x').value);
-    bodies[3].y = parseFloat(document.getElementById('p-y').value);
-    bodies[3].z = parseFloat(document.getElementById('p-z').value);
-    bodies[3].vx = parseFloat(document.getElementById('p-vx').value);
-    bodies[3].vy = parseFloat(document.getElementById('p-vy').value);
-    bodies[3].vz = parseFloat(document.getElementById('p-vz').value);
-
-    // 更新半径
-    for (let body of bodies) {
-        body.radius = Math.cbrt(body.mass) * 0.5;
+        // 更新半径
+        bodies[i].radius = Math.cbrt(bodies[i].mass) * 0.5;
     }
 }
 
@@ -372,6 +353,7 @@ function calculateGravity(body1, body2) {
 }
 
 // 检查碰撞
+// 检查碰撞
 function checkCollisions() {
     for (let i = 0; i < bodies.length; i++) {
         for (let j = i + 1; j < bodies.length; j++) {
@@ -389,19 +371,25 @@ function checkCollisions() {
                 // 创建碰撞消息
                 let message = "";
                 // 检查是否是行星P与其他天体碰撞
-                if ((body1.name === 'p' && body2.name !== 'p') ||
-                    (body2.name === 'p' && body1.name !== 'p')) {
+                const hasPlanetP = bodies.some(body => body.name === 'p');
+                if (hasPlanetP && ((body1.name === 'p' && body2.name !== 'p') ||
+                    (body2.name === 'p' && body1.name !== 'p'))) {
                     message = "三体文明的行星被恒星吞噬了……文明的种子不复存在";
                 } else {
                     message = `${body1.name}和${body2.name}相撞`;
                 }
 
-                // 添加文明编号
-                const civilizationMessage = `第${civilizationId}号文明历程中，${message}`;
-                showCollisionMessage(civilizationMessage);
+                // 添加文明编号（仅当存在行星P时）
+                if (hasPlanetP) {
+                    const civilizationMessage = `${message}`;
+                    showCollisionMessage(civilizationMessage);
+                } else {
+                    showCollisionMessage(message);
+                }
 
-                // 记录文明毁灭
-                if (!lastCivilizationRecorded && (body1.name === 'p' || body2.name === 'p')) {
+                // 记录文明毁灭（仅当存在行星P且未记录过时）
+                const hasPlanetPAndNotRecorded = hasPlanetP && !lastCivilizationRecorded;
+                if (hasPlanetPAndNotRecorded && (body1.name === 'p' || body2.name === 'p')) {
                     recordCivilization(message, time - civilizationStartTime);
                     lastCivilizationRecorded = true;
                 }
@@ -514,6 +502,7 @@ function showTemperatureMessage(message) {
 
 
 // 计算行星P的表面温度（基于所有其他天体的综合影响）
+// 计算行星P的表面温度（基于所有其他天体的综合影响）
 function calculatePlanetPTemperature() {
     // 找到行星p
     const planetP = bodies.find(body => body.name === 'p');
@@ -551,7 +540,7 @@ function calculatePlanetPTemperature() {
     // 基于总能量计算温度 (增强模型)
     // 使用 Stefan-Boltzmann 定律: P = σ * A * T^4
     // 这里我们增强系数使温度更现实
-    const temperatureK = 100 * Math.pow(totalEnergy, 0.25);
+    const temperatureK = 150 * Math.pow(totalEnergy, 0.25);
 
     // 转换为摄氏度
     const temperatureC = temperatureK - 273.15;
@@ -997,9 +986,9 @@ function animate() {
     // 检查温度并显示相应消息
     if (temperature !== '--') {
         const temp = parseFloat(temperature);
-        if (temp > 300) {
+        if (temp > 400) {
             showTemperatureMessage("在阳光的烈焰下毁灭了……文明的种子仍然存在");
-        } else if (temp < -210) {
+        } else if (temp < -100) {
             showTemperatureMessage("在无尽的凛冬下毁灭了……文明的种子仍然存在");
         }
     }
@@ -1285,6 +1274,7 @@ document.getElementById('importBtn').addEventListener('click', function () {
     document.getElementById('fileInput').click();
 });
 
+// 导入参数功能
 document.getElementById('fileInput').addEventListener('change', function (e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -1306,7 +1296,7 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
                         bodyData.vx,
                         bodyData.vy,
                         bodyData.vz,
-                        bodyData.color
+                        bodyData.color || '#ffffff' // 添加默认颜色以防未定义
                     );
                 });
 
@@ -1317,7 +1307,7 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
                     }
                 }
 
-                // 更新UI
+                // 更新UI（如果天体数量足够）
                 updateUI();
             }
 
@@ -1334,6 +1324,9 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
             selectedBody = null;
             document.getElementById('body-info').style.display = 'none';
             lastTemperatureMessage = "";
+            
+            // 导入参数后不计算文明兴衰
+            lastCivilizationRecorded = true;
         } catch (error) {
             alert('参数文件解析失败：' + error.message);
         }
