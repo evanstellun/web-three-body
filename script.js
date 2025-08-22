@@ -110,6 +110,9 @@ class CelestialBody {
 }
 
 // 初始化天体
+// 初始化天体（保存初始状态）
+let initialBodies = [];
+
 function initBodies() {
     bodies = [
         new CelestialBody('α', 10000, 0, 0, 0, 0, 0, 0, '#ff5555'),
@@ -117,11 +120,30 @@ function initBodies() {
         new CelestialBody('γ', 10000, -200, 0, 0, 0, -10, 0, '#55ff55'),
         new CelestialBody('p', 10, 0, 150, 0, -15, 0, 0, '#ffff55')
     ];
+    
+    // 保存初始状态
+    saveInitialBodies();
+    
     // 初始化轨迹数组
     for (const body of bodies) {
         trails[body.name] = [];
     }
     updateUI();
+}
+
+// 保存当前天体状态作为初始状态
+function saveInitialBodies() {
+    initialBodies = bodies.map(body => ({
+        name: body.name,
+        mass: body.mass,
+        x: body.x,
+        y: body.y,
+        z: body.z,
+        vx: body.vx,
+        vy: body.vy,
+        vz: body.vz,
+        color: body.color
+    }));
 }
 
 // 更新UI控件值
@@ -200,44 +222,74 @@ function getNextCivilizationId() {
 }
 
 // 记录文明历史
-function recordCivilization(destructionMethod, existenceTime) {
+// 修改 showCivilizationHistory 函数以显示文明发展状态
+function showCivilizationHistory() {
+    const modal = document.getElementById('civilization-history-modal');
+    const tableBody = document.getElementById('civilization-history-body');
+
+    // 清空表格
+    tableBody.innerHTML = '';
+
     try {
-        let history = [];
         const data = localStorage.getItem('civilizationHistory');
         if (data) {
-            history = JSON.parse(data);
+            const history = JSON.parse(data);
+            // 过滤掉currentId记录，只显示文明记录
+            const civilizations = history.filter(entry => entry.id !== undefined && entry.destruction !== undefined);
+
+            civilizations.forEach(entry => {
+                // 根据灭亡消息内容判断是高温还是低温毁灭
+                let destructionType = entry.destruction;
+                if (entry.destruction.includes("烈焰") || 
+                    entry.destruction.includes("高温") || 
+                    entry.destruction.includes("巨日") ||
+                    entry.destruction.includes("双日凌空") ||
+                    entry.destruction.includes("飞星不动")) {
+                    destructionType = "在高温下毁灭";
+                } else if (entry.destruction.includes("凛冬") || 
+                          entry.destruction.includes("严寒") || 
+                          entry.destruction.includes("太阳落下") ||
+                          entry.destruction.includes("雪花") ||
+                          entry.destruction.includes("夜空升起") ||
+                          entry.destruction.includes("氮氧凝固")) {
+                    destructionType = "在低温下毁灭";
+                }
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${entry.id}号文明</td>
+                    <td>${destructionType}</td>
+                    <td>${entry.existenceTime}</td>
+                    <td>${entry.era || '--'}</td>
+                `;
+                tableBody.appendChild(row);
+            });
         }
-
-        // 添加新的文明记录
-        history.push({
-            id: civilizationId,
-            destruction: destructionMethod,
-            existenceTime: existenceTime.toFixed(2)
-        });
-
-        // 更新当前ID
-        history.push({
-            currentId: civilizationId
-        });
-
-        localStorage.setItem('civilizationHistory', JSON.stringify(history));
     } catch (e) {
-        console.error("Error recording civilization:", e);
+        console.error("Error loading civilization history:", e);
     }
-}
 
+    modal.style.display = 'block';
+
+    // 自动滚动到最新记录
+    const modalBody = modal.querySelector('.modal-body');
+    setTimeout(() => {
+        modalBody.scrollTop = modalBody.scrollHeight;
+    }, 100);
+}
 // 随机生成天体参数
-// 找到randomizeBodies函数，并替换为以下代码
-// 随机生成天体参数
+// 修改 randomizeBodies 函数
 function randomizeBodies() {
     // 如果上一个文明还没有毁灭，记录它繁荣昌盛
     if (!lastCivilizationRecorded && time > 0) {
-        recordCivilization("进入了持久的恒纪元，繁荣昌盛地延续了下去……", time - civilizationStartTime);
+        const existenceTime = time - civilizationStartTime;
+        const era = getCivilizationEra(existenceTime);
+        recordCivilization("被观察者关闭了", existenceTime.toFixed(2), era);
     }
 
     // 重置文明计数器
     civilizationStartTime = time;
-    lastCivilizationRecorded = false; // 这个标志需要重置为false
+    lastCivilizationRecorded = false; // 重置文明记录标志
     civilizationId = getNextCivilizationId();
 
     // 清空当前所有天体和轨迹
@@ -252,7 +304,7 @@ function randomizeBodies() {
     const alpha = new CelestialBody('α', 10000, 0, 0, 0, 0, 0, 0, '#ff5555');
     const beta = new CelestialBody('β', 10000, 0, 0, 0, 0, 0, 0, '#5555ff');
     const gamma = new CelestialBody('γ', 10000, 0, 0, 0, 0, 0, 0, '#55ff55');
-    const p = new CelestialBody('p', 10, 0, 0, 0, 0, 0, 0, '#ffff55');
+    const p = new CelestialBody('p', 10, 0, 0, 0, 0, 0, 0, '#00ffff'); // 初始为青色
 
     bodies.push(alpha, beta, gamma, p);
 
@@ -308,19 +360,21 @@ function randomizeBodies() {
     // 重置温度消息，确保新文明可以触发温度警告
     lastTemperatureMessage = "";
 
+    // 保存当前状态作为新的初始状态
+    saveInitialBodies();
+    
     updateUI();
 }
-
-
-// 找到resetSimulation函数，并替换为以下代码
-// 重置模拟
+// 修改 resetSimulation 函数
 function resetSimulation() {
     time = 0;
-    scale = 1;
-    offsetX = 0;
-    offsetY = 0;
-    rotationX = 0;
-    rotationY = 0;
+    // 不再重置视角参数
+    // scale = 1;
+    // offsetX = 0;
+    // offsetY = 0;
+    // rotationX = 0;
+    // rotationY = 0;
+    
     centerBody = null;
     selectedBody = null;
     document.getElementById('body-info').style.display = 'none';
@@ -328,9 +382,32 @@ function resetSimulation() {
     civilizationStartTime = 0;
     lastCivilizationRecorded = false; // 重置文明记录标志
     civilizationId = getNextCivilizationId();
-    initBodies();
+    
+    // 使用当前初始数据重新创建天体
+    bodies = initialBodies.map(data => new CelestialBody(
+        data.name,
+        data.mass,
+        data.x,
+        data.y,
+        data.z,
+        data.vx,
+        data.vy,
+        data.vz,
+        data.color
+    ));
+    
+    // 清空轨迹数据
+    for (let key in trails) {
+        delete trails[key];
+    }
+    
+    // 为每个天体初始化轨迹数组
+    for (const body of bodies) {
+        trails[body.name] = [];
+    }
+    
+    updateUI();
 }
-
 // 计算两个天体之间的引力
 function calculateGravity(body1, body2) {
     const dx = body2.x - body1.x;
@@ -354,6 +431,9 @@ function calculateGravity(body1, body2) {
 
 // 检查碰撞
 // 检查碰撞
+// 检查碰撞
+// 修改 checkCollisions 函数中的相关部分
+// 修改 checkCollisions 函数
 function checkCollisions() {
     for (let i = 0; i < bodies.length; i++) {
         for (let j = i + 1; j < bodies.length; j++) {
@@ -374,7 +454,7 @@ function checkCollisions() {
                 const hasPlanetP = bodies.some(body => body.name === 'p');
                 if (hasPlanetP && ((body1.name === 'p' && body2.name !== 'p') ||
                     (body2.name === 'p' && body1.name !== 'p'))) {
-                    message = "三体文明的行星被恒星吞噬了……文明的种子不复存在";
+                    message = "行星P被恒星吞噬了";
                 } else {
                     message = `${body1.name}和${body2.name}相撞`;
                 }
@@ -390,7 +470,16 @@ function checkCollisions() {
                 // 记录文明毁灭（仅当存在行星P且未记录过时）
                 const hasPlanetPAndNotRecorded = hasPlanetP && !lastCivilizationRecorded;
                 if (hasPlanetPAndNotRecorded && (body1.name === 'p' || body2.name === 'p')) {
-                    recordCivilization(message, time - civilizationStartTime);
+                    const existenceTime = time - civilizationStartTime;
+                    const era = getCivilizationEra(existenceTime);
+                    
+                    // 如果文明存活时间超过400，不记录毁灭
+                    if (existenceTime < 400) {
+                        recordCivilization(message, existenceTime.toFixed(2), era);
+                    } else {
+                        // 对于星际探索文明，记录其进入星际时代但不记录毁灭
+                        recordCivilization("飞向了新的家园", "--", era);
+                    }
                     lastCivilizationRecorded = true;
                 }
 
@@ -403,15 +492,7 @@ function checkCollisions() {
                 const newVy = (body1.vy * body1.mass + body2.vy * body2.mass) / totalMass;
                 const newVz = (body1.vz * body1.mass + body2.vz * body2.mass) / totalMass;
 
-                // 重置为四个标准天体而不是星云
-                if (bodies.length <= 2) { // 当只剩下两个天体时重置系统
-                    setTimeout(() => {
-                        randomizeBodies(); // 重新随机生成系统
-                    }, 100);
-                    return;
-                }
-
-                // 创建新的标准天体（不是星云）
+                // 创建新的标准天体
                 let newName = '';
                 if (body1.name.length === 1 && body2.name.length === 1) {
                     newName = String.fromCharCode(body1.name.charCodeAt(0) + body2.name.charCodeAt(0));
@@ -462,7 +543,6 @@ function checkCollisions() {
         }
     }
 }
-
 // 显示碰撞消息
 function showCollisionMessage(message) {
     const collisionMessage = document.getElementById('collision-message');
@@ -474,34 +554,93 @@ function showCollisionMessage(message) {
     }, 5000);
 }
 
-// 显示温度警告消息
+// 修改 showTemperatureMessage 函数
 function showTemperatureMessage(message) {
-    // 如果消息与上次相同，则不重复显示
-    if (message === lastTemperatureMessage) return;
+    // 如果消息与上次相同或文明已经记录，则不重复显示
+    if (message === lastTemperatureMessage || lastCivilizationRecorded) return;
 
     lastTemperatureMessage = message;
 
-    // 添加文明编号到消息
-    let civilizationMessage = `第${civilizationId}号文明${message}`;
+    // 定义不同温度情况下的多种描述
+    const coldMessages = [
+        `第${civilizationId}号文明被冻结在了零下100°C的严寒之下`,
+        `第${civilizationId}号文明在无限的凛冬下毁灭了`,
+        `第${civilizationId}号文明的太阳落下了，然后再也没有升起……`,
+        `洁白的雪花落在第${civilizationId}号文明的土地上——那是大气的氮氧凝固的雪花`,
+        `第${civilizationId}号文明的夜空升起了三颗飞星`,
+        `一轮太阳在第${civilizationId}号文明的上空熄灭了`
+    ];
+
+    const hotMessages = [
+        `一轮巨日从第${civilizationId}号文明的地平线升起，它落下时已经抹去了所有文明的痕迹`,
+        `第${civilizationId}号文明在烈焰下熊熊燃烧`,
+        `第${civilizationId}号文明观测到了飞星不动，然后在烈日下毁灭了`,
+        `第${civilizationId}号文明在双日凌空的高温下毁灭了`,
+        `很遗憾，熔融的地壳没有保留第${civilizationId}号文明的任何痕迹`
+    ];
+
+    // 根据消息内容选择合适的描述集合
+    let finalMessage;
+    if (message.includes("在阳光的烈焰下毁灭了")) {
+        // 高温情况，随机选择一种描述
+        finalMessage = hotMessages[Math.floor(Math.random() * hotMessages.length)];
+    } else if (message.includes("在无尽的凛冬下毁灭了")) {
+        // 低温情况，随机选择一种描述
+        finalMessage = coldMessages[Math.floor(Math.random() * coldMessages.length)];
+    } else {
+        // 其他情况，使用原始消息
+        finalMessage = `第${civilizationId}号文明${message}`;
+    }
+
+    // 添加文明所处的时代信息
+    const existenceTime = time - civilizationStartTime;
+    const era = getCivilizationEra(existenceTime);
+    
+    // 如果文明存活时间超过400，它将开启星际殖民（但这里只处理毁灭情况）
+    finalMessage += `，该文明发展到${era}`;
+
     const temperatureMessage = document.getElementById('temperature-message');
-    temperatureMessage.textContent = civilizationMessage;
+    temperatureMessage.textContent = finalMessage;
     temperatureMessage.style.display = 'block';
 
     // 记录文明毁灭 - 但需要确保文明存在了一定时间才记录
-    const existenceTime = time - civilizationStartTime;
     if (!lastCivilizationRecorded && existenceTime > 0.1) { // 至少存在0.1个时间单位才记录
-        recordCivilization(message, existenceTime);
+        recordCivilization(finalMessage, existenceTime.toFixed(2), era);
         lastCivilizationRecorded = true;
     }
 
     setTimeout(() => {
         temperatureMessage.style.display = 'none';
     }, 5000);
+}// 修改 recordCivilization 函数
+function recordCivilization(destructionMethod, existenceTime, era) {
+    try {
+        let history = [];
+        const data = localStorage.getItem('civilizationHistory');
+        if (data) {
+            history = JSON.parse(data);
+        }
+
+        // 添加新的文明记录
+        const record = {
+            id: civilizationId,
+            destruction: destructionMethod,
+            existenceTime: existenceTime,
+            era: era
+        };
+        
+        history.push(record);
+
+        // 更新当前ID
+        history.push({
+            currentId: civilizationId
+        });
+
+        localStorage.setItem('civilizationHistory', JSON.stringify(history));
+    } catch (e) {
+        console.error("Error recording civilization:", e);
+    }
 }
-
-
-
-// 计算行星P的表面温度（基于所有其他天体的综合影响）
 // 计算行星P的表面温度（基于所有其他天体的综合影响）
 function calculatePlanetPTemperature() {
     // 找到行星p
@@ -547,8 +686,66 @@ function calculatePlanetPTemperature() {
 
     return temperatureC.toFixed(2);
 }
+function getPlanetPColor(temperatureC) {
+    // 将摄氏度转换为开尔文
+    const temperatureK = temperatureC + 273.15;
+    
+    // 深蓝色到青色 (0K to 0°C/273.15K)
+    if (temperatureK <= 273.15) {
+        const ratio = temperatureK / 273.15;
+        // 深蓝色 (0, 0, 100) 到青色 (0, 255, 255)
+        const r = 0;
+        const g = Math.floor(ratio * 255);
+        const b = 100 + Math.floor(ratio * 155);
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+    // 青色到绿色到黄绿色 (0°C to 100°C)
+    else if (temperatureK <= 373.15) {
+        const ratio = (temperatureK - 273.15) / 100;
+        if (ratio <= 0.5) {
+            // 青色 (0, 255, 255) 到绿色 (0, 255, 0)
+            const r = 0;
+            const g = 255;
+            const b = 255 - Math.floor(ratio * 2 * 255);
+            return `rgb(${r}, ${g}, ${b})`;
+        } else {
+            // 绿色 (0, 255, 0) 到黄绿色 (150, 255, 0)
+            const r = Math.floor((ratio - 0.5) * 2 * 150);
+            const g = 255;
+            const b = 0;
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+    }
+    // 黄绿色到红色 (100°C to 1000K/726.85°C)
+    else {
+        const maxTemp = 1000;
+        const ratio = Math.min(1, (temperatureK - 373.15) / (maxTemp - 373.15));
+        if (ratio <= 0.5) {
+            // 黄绿色 (150, 255, 0) 到橙色 (255, 165, 0)
+            const r = 150 + Math.floor(ratio * 2 * 105);
+            const g = 255 - Math.floor(ratio * 2 * 90);
+            const b = 0;
+            return `rgb(${r}, ${g}, ${b})`;
+        } else {
+            // 橙色 (255, 165, 0) 到红色 (255, 0, 0)
+            const r = 255;
+            const g = 165 - Math.floor((ratio - 0.5) * 2 * 165);
+            const b = 0;
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+    }
+}
 
-// 更新天体位置
+// 在 script.js 中添加获取文明所处的时代函数
+function getCivilizationEra(existenceTime) {
+    if (existenceTime < 100) return "原始时代";
+    if (existenceTime < 250) return "封建时代";
+    if (existenceTime < 300) return "蒸汽时代";
+    if (existenceTime < 333) return "电气时代";
+    if (existenceTime < 366) return "原子时代";
+    if (existenceTime < 400) return "信息时代";
+    return "星际探索时代";
+}
 function updateBodiesPosition() {
     // 计算并应用引力
     for (let i = 0; i < bodies.length; i++) {
@@ -593,13 +790,22 @@ function updateBodiesPosition() {
         }
     }
 
+    // 根据温度更新行星P的颜色
+    const planetP = bodies.find(body => body.name === 'p');
+    if (planetP) {
+        const temperature = calculatePlanetPTemperature();
+        if (temperature !== '--') {
+            const temp = parseFloat(temperature);
+            planetP.color = getPlanetPColor(temp);
+        }
+    }
+
     // 检查碰撞
     checkCollisions();
 
     // 更新时间
     time += 0.01 * speedFactor;
 }
-
 // 3D到2D投影
 function project3D(x, y, z) {
     // 如果有聚焦天体，以该天体为中心
@@ -639,10 +845,8 @@ function project3D(x, y, z) {
 }
 
 // 绘制无限立体网格
+// 绘制无限立体网格
 function drawGrid() {
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = 1;
-
     // 计算当前视图中心点
     const centerX = -offsetX / scale;
     const centerY = -offsetY / scale;
@@ -652,8 +856,8 @@ function drawGrid() {
     const viewWidth = canvas.width / scale;
     const viewHeight = canvas.height / scale;
 
-    // 网格参数
-    const gridStep = 50;
+    // 网格参数 - 增加网格间距使其更稀疏
+    const gridStep = 100; // 从50增加到100，使网格更稀疏
 
     // 计算需要绘制的网格范围
     const startX = Math.floor((centerX - viewWidth / 2) / gridStep) * gridStep;
@@ -664,10 +868,16 @@ function drawGrid() {
     const endZ = Math.ceil((centerZ + viewHeight / 2) / gridStep) * gridStep;
 
     // 绘制XY平面网格 (z=0)
-    ctx.strokeStyle = 'rgba(100, 100, 255, 0.2)'; // 红色网格线表示XZ平面
     for (let x = startX; x <= endX; x += gridStep) {
         const start = project3D(x, startY, 0);
         const end = project3D(x, endY, 0);
+        
+        // 根据距离计算透明度，使远处的网格更暗淡
+        const distanceFactor = Math.abs(x - centerX) / (viewWidth / 2);
+        const alpha = Math.max(0.05, 0.3 - distanceFactor * 0.25);
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
@@ -677,6 +887,13 @@ function drawGrid() {
     for (let y = startY; y <= endY; y += gridStep) {
         const start = project3D(startX, y, 0);
         const end = project3D(endX, y, 0);
+        
+        // 根据距离计算透明度，使远处的网格更暗淡
+        const distanceFactor = Math.abs(y - centerY) / (viewHeight / 2);
+        const alpha = Math.max(0.05, 0.3 - distanceFactor * 0.25);
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
@@ -684,10 +901,16 @@ function drawGrid() {
     }
 
     // 绘制XZ平面网格 (y=0)
-    ctx.strokeStyle = 'rgba(255, 100, 100, 0.2)'; // 红色网格线表示XZ平面
     for (let x = startX; x <= endX; x += gridStep) {
         const start = project3D(x, 0, startZ);
         const end = project3D(x, 0, endZ);
+        
+        // 根据距离计算透明度，使远处的网格更暗淡
+        const distanceFactor = Math.abs(x - centerX) / (viewWidth / 2);
+        const alpha = Math.max(0.05, 0.3 - distanceFactor * 0.25);
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
@@ -697,6 +920,13 @@ function drawGrid() {
     for (let z = startZ; z <= endZ; z += gridStep) {
         const start = project3D(startX, 0, z);
         const end = project3D(endX, 0, z);
+        
+        // 根据距离计算透明度，使远处的网格更暗淡
+        const distanceFactor = Math.abs(z - centerZ) / (viewHeight / 2);
+        const alpha = Math.max(0.05, 0.3 - distanceFactor * 0.25);
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
@@ -704,10 +934,16 @@ function drawGrid() {
     }
 
     // 绘制YZ平面网格 (x=0)
-    ctx.strokeStyle = 'rgba(100, 255, 100, 0.2)'; // 绿色网格线表示YZ平面
     for (let y = startY; y <= endY; y += gridStep) {
         const start = project3D(0, y, startZ);
         const end = project3D(0, y, endZ);
+        
+        // 根据距离计算透明度，使远处的网格更暗淡
+        const distanceFactor = Math.abs(y - centerY) / (viewHeight / 2);
+        const alpha = Math.max(0.05, 0.3 - distanceFactor * 0.25);
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
@@ -717,6 +953,13 @@ function drawGrid() {
     for (let z = startZ; z <= endZ; z += gridStep) {
         const start = project3D(0, startY, z);
         const end = project3D(0, endY, z);
+        
+        // 根据距离计算透明度，使远处的网格更暗淡
+        const distanceFactor = Math.abs(z - centerZ) / (viewHeight / 2);
+        const alpha = Math.max(0.05, 0.3 - distanceFactor * 0.25);
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
@@ -724,9 +967,9 @@ function drawGrid() {
     }
 
     // 绘制坐标轴（加重显示）
-    // X轴（红色）
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
-    ctx.lineWidth = 3;
+    // X轴（白色）
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 2;
     const xStart = project3D(startX, 0, 0);
     const xEnd = project3D(endX, 0, 0);
     ctx.beginPath();
@@ -734,8 +977,7 @@ function drawGrid() {
     ctx.lineTo(xEnd.x, xEnd.y);
     ctx.stroke();
 
-    // Y轴（绿色）
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+    // Y轴（白色）
     const yStart = project3D(0, startY, 0);
     const yEnd = project3D(0, endY, 0);
     ctx.beginPath();
@@ -743,8 +985,7 @@ function drawGrid() {
     ctx.lineTo(yEnd.x, yEnd.y);
     ctx.stroke();
 
-    // Z轴（蓝色）
-    ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)';
+    // Z轴（白色）
     const zStart = project3D(0, 0, startZ);
     const zEnd = project3D(0, 0, endZ);
     ctx.beginPath();
@@ -753,7 +994,7 @@ function drawGrid() {
     ctx.stroke();
 
     // 重置为默认网格线颜色和线宽
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
     ctx.lineWidth = 1;
 }
 
@@ -928,6 +1169,7 @@ function showQuote() {
 }
 
 // 显示文明历史
+// 修改 showCivilizationHistory 函数
 function showCivilizationHistory() {
     const modal = document.getElementById('civilization-history-modal');
     const tableBody = document.getElementById('civilization-history-body');
@@ -943,11 +1185,31 @@ function showCivilizationHistory() {
             const civilizations = history.filter(entry => entry.id !== undefined && entry.destruction !== undefined);
 
             civilizations.forEach(entry => {
+                // 根据灭亡消息内容判断是高温还是低温毁灭
+                let destructionType = entry.destruction;
+                if (entry.destruction.includes("烈焰") || 
+                    entry.destruction.includes("高温") || 
+                    entry.destruction.includes("巨日") ||
+                    entry.destruction.includes("双日凌空") ||
+                    entry.destruction.includes("飞星不动")) {
+                    destructionType = "在高温下毁灭";
+                } else if (entry.destruction.includes("凛冬") || 
+                          entry.destruction.includes("严寒") || 
+                          entry.destruction.includes("太阳落下") ||
+                          entry.destruction.includes("雪花") ||
+                          entry.destruction.includes("夜空升起") ||
+                          entry.destruction.includes("氮氧凝固")) {
+                    destructionType = "在低温下毁灭";
+                } else if (entry.destruction.includes("飞向了新的家园")) {
+                    destructionType = "飞向了新的家园";
+                }
+
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${entry.id}号文明</td>
-                    <td>${entry.destruction}</td>
+                    <td>${destructionType}</td>
                     <td>${entry.existenceTime}</td>
+                    <td>${entry.era || '--'}</td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -964,13 +1226,13 @@ function showCivilizationHistory() {
         modalBody.scrollTop = modalBody.scrollHeight;
     }, 100);
 }
-
 // 关闭文明历史模态框
 function closeCivilizationHistory() {
     document.getElementById('civilization-history-modal').style.display = 'none';
 }
 
 // 主动画循环
+// 修改主动画循环函数
 function animate() {
     updateBodiesPosition();
     drawBodies();
@@ -983,8 +1245,11 @@ function animate() {
     const temperature = calculatePlanetPTemperature();
     document.getElementById('temperature-info').textContent = `行星P表面温度: ${temperature} °C`;
 
-    // 检查温度并显示相应消息
-    if (temperature !== '--') {
+    // 检查文明是否达到里程碑
+    checkCivilizationMilestone();
+
+    // 检查温度并显示相应消息（仅当文明尚未记录时）
+    if (temperature !== '--' && !lastCivilizationRecorded) {
         const temp = parseFloat(temperature);
         if (temp > 400) {
             showTemperatureMessage("在阳光的烈焰下毁灭了……文明的种子仍然存在");
@@ -995,7 +1260,6 @@ function animate() {
 
     requestAnimationFrame(animate);
 }
-
 // 鼠标事件处理
 canvas.addEventListener('mousedown', (e) => {
     if (e.button === 0) { // 仅左键拖动
@@ -1284,6 +1548,11 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
         try {
             const params = JSON.parse(e.target.result);
 
+            // 清空轨迹数据
+            for (let key in trails) {
+                delete trails[key];
+            }
+
             // 恢复天体参数
             if (params.bodies && Array.isArray(params.bodies)) {
                 bodies = params.bodies.map(bodyData => {
@@ -1335,11 +1604,39 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
     // 清空文件输入框，以便下次选择同一文件也能触发change事件
     e.target.value = '';
 });
+// 在 script.js 中添加检查文明是否进入星际时代的函数
+function checkCivilizationMilestone() {
+    // 只有当行星P存在且文明尚未记录时才检查
+    const planetP = bodies.find(body => body.name === 'p');
+    if (!planetP || lastCivilizationRecorded) return;
+    
+    const existenceTime = time - civilizationStartTime;
+    
+    // 如果文明存在时间超过400且还未记录，则立即记录并显示信息
+    if (existenceTime >= 400) {
+        const era = getCivilizationEra(existenceTime);
+        showInterstellarMessage(era);
+        recordCivilization("飞向了新的家园", "--", era);
+        lastCivilizationRecorded = true;
+    }
+}
+
+// 添加显示星际殖民消息的函数
+function showInterstellarMessage(era) {
+    const message = `第${civilizationId}号文明开启了星际殖民，第一舰队已经启航，目标是四光年外的一个只有一颗太阳的稳定世界……`;
+    
+    const temperatureMessage = document.getElementById('temperature-message');
+    temperatureMessage.textContent = message;
+    temperatureMessage.style.display = 'block';
+    
+    setTimeout(() => {
+        temperatureMessage.style.display = 'none';
+    }, 5000);
+}
 
 // 按钮事件绑定
-document.getElementById('updateBtn').addEventListener('click', updateBodies);
-document.getElementById('randomizeBtn').addEventListener('click', randomizeBodies);
-document.getElementById('resetBtn').addEventListener('click', resetSimulation);
+document.getElementById('updateBtn').addEventListener('click', resetSimulation); // 重新模拟使用初始数据
+document.getElementById('randomizeBtn').addEventListener('click', randomizeBodies); // 重开一局
 
 // 文明历史按钮事件
 document.getElementById('civilization-history-btn').addEventListener('click', showCivilizationHistory);
@@ -1371,10 +1668,16 @@ if (clearHistoryBtn) {
 // 在适当的事件监听器绑定位置添加以下代码
 document.getElementById('clear-history-btn').addEventListener('click', clearCivilizationHistory);
 // 初始化并启动模拟
+// 初始化并启动模拟
 civilizationId = getNextCivilizationId();
 randomizeBodies(); // 默认随机生成
 // 设置默认视角为三个正半轴围成的象限的中线朝向原点
 rotationX = Math.PI / 4; // 45度
 rotationY = Math.PI / 4; // 45度
+
+// 默认展开控制面板
+document.getElementById('controls-content').style.display = 'block';
+document.getElementById('toggle-controls').textContent = '收起';
+
 animate();
 showQuote(); // 启动名句轮播

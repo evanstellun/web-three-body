@@ -48,108 +48,64 @@
 
         <div id="controls-container">
             <div id="controls-header">
-                <h3>天体参数控制</h3>
-                <button id="toggle-controls">展开</button>
+                <h3>控制面板</h3>
+                <button id="toggle-controls">收起</button>
             </div>
 
             <div id="controls-content">
-                <div class="celestial-body">
-                    <strong>恒星 α</strong>
-                    <div><label>质量:</label><input type="number" id="alpha-mass" value="10000"></div>
-                    <div><label>X位置:</label><input type="number" id="alpha-x" value="0"></div>
-                    <div><label>Y位置:</label><input type="number" id="alpha-y" value="0"></div>
-                    <div><label>Z位置:</label><input type="number" id="alpha-z" value="0"></div>
-                    <div><label>X速度:</label><input type="number" id="alpha-vx" value="0"></div>
-                    <div><label>Y速度:</label><input type="number" id="alpha-vy" value="0"></div>
-                    <div><label>Z速度:</label><input type="number" id="alpha-vz" value="0"></div>
-                </div>
-
-                <div class="celestial-body">
-                    <strong>恒星 β</strong>
-                    <div><label>质量:</label><input type="number" id="beta-mass" value="10000"></div>
-                    <div><label>X位置:</label><input type="number" id="beta-x" value="200"></div>
-                    <div><label>Y位置:</label><input type="number" id="beta-y" value="0"></div>
-                    <div><label>Z位置:</label><input type="number" id="beta-z" value="0"></div>
-                    <div><label>X速度:</label><input type="number" id="beta-vx" value="0"></div>
-                    <div><label>Y速度:</label><input type="number" id="beta-vy" value="10"></div>
-                    <div><label>Z速度:</label><input type="number" id="beta-vz" value="0"></div>
-                </div>
-
-                <div class="celestial-body">
-                    <strong>恒星 γ</strong>
-                    <div><label>质量:</label><input type="number" id="gamma-mass" value="10000"></div>
-                    <div><label>X位置:</label><input type="number" id="gamma-x" value="-200"></div>
-                    <div><label>Y位置:</label><input type="number" id="gamma-y" value="0"></div>
-                    <div><label>Z位置:</label><input type="number" id="gamma-z" value="0"></div>
-                    <div><label>X速度:</label><input type="number" id="gamma-vx" value="0"></div>
-                    <div><label>Y速度:</label><input type="number" id="gamma-vy" value="-10"></div>
-                    <div><label>Z速度:</label><input type="number" id="gamma-vz" value="0"></div>
-                </div>
-
-                <div class="celestial-body">
-                    <strong>行星 p</strong>
-                    <div><label>质量:</label><input type="number" id="p-mass" value="10"></div>
-                    <div><label>X位置:</label><input type="number" id="p-x" value="0"></div>
-                    <div><label>Y位置:</label><input type="number" id="p-y" value="150"></div>
-                    <div><label>Z位置:</label><input type="number" id="p-z" value="0"></div>
-                    <div><label>X速度:</label><input type="number" id="p-vx" value="-15"></div>
-                    <div><label>Y速度:</label><input type="number" id="p-vy" value="0"></div>
-                    <div><label>Z速度:</label><input type="number" id="p-vz" value="0"></div>
-                </div>
-            </div>
-
-            <div id="buttons-container">
-                <div class="main-buttons">
-                    <button id="updateBtn">更新参数</button>
-                    <button id="randomizeBtn">随机生成</button>
-                    <button id="resetBtn">重置模拟</button>
-                </div>
-                <div class="io-buttons">
-                    <button id="exportBtn">导出参数</button>
-                    <button id="importBtn">导入参数</button>
-                    <input type="file" id="fileInput" accept=".json">
-                </div>
-            </div>
-
-            <!-- 修改HTML中的滑块 -->
-            <div id="speed-container">
-                <label>模拟速度:</label>
-                <div class="speed-control-wrapper">
-                    <div class="speed-scale">
-                        <span class="speed-scale-min">0.1x</span>
-                        <span class="speed-scale-mid">1x</span>
-                        <span class="speed-scale-max">300x</span>
+                <div id="buttons-container">
+                    <div class="main-buttons">
+                        <button id="randomizeBtn">重开一局</button>
+                        <button id="updateBtn">重新模拟</button>
                     </div>
-                    <input type="range" id="speed-control" min="0" max="100" value="30">
+                    <div class="io-buttons">
+                        <button id="exportBtn">导出参数</button>
+                        <button id="importBtn">导入参数</button>
+                        <input type="file" id="fileInput" accept=".json">
+                    </div>
                 </div>
-                <span id="speed-value">30.0x</span>
+
+                <!-- 修改HTML中的滑块 -->
+                <div id="speed-container">
+                    <label>模拟速度:</label>
+                    <div class="speed-control-wrapper">
+                        <div class="speed-scale">
+                            <span class="speed-scale-min">0.1x</span>
+                            <span class="speed-scale-mid">1x</span>
+                            <span class="speed-scale-max">300x</span>
+                        </div>
+                        <input type="range" id="speed-control" min="0" max="100" value="30">
+                    </div>
+                    <span id="speed-value">30.0x</span>
+                </div>
             </div>
         </div>
     </div>
 
     <div id="civilization-history-modal" class="modal">
-    <div class="modal-content">
-        <span class="close">&times;</span>
-        <h2>三体文明历程</h2>
-        <div class="modal-body">
-            <table id="civilization-history-table">
-                <thead>
-                    <tr>
-                        <th>文明编号</th>
-                        <th>灭亡方式</th>
-                        <th>存在时间</th>
-                    </tr>
-                </thead>
-                <tbody id="civilization-history-body">
-                    <!-- 数据将通过JavaScript填充 -->
-                </tbody>
-            </table>
-        </div>
-        <div class="modal-footer">
-            <button id="clear-history-btn">清除文明历史记录</button>
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>三体文明历程</h2>
+            <div class="modal-body">
+                <table id="civilization-history-table">
+                    <thead>
+                        <tr>
+                            <th>文明编号</th>
+                            <th>文明结局</th>
+                            <th>存在时间</th>
+                            <th>文明发展状态</th>
+                        </tr>
+                    </thead>
+                    <tbody id="civilization-history-body">
+                        <!-- 数据将通过JavaScript填充 -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button id="clear-history-btn">清除文明历史记录</button>
+            </div>
         </div>
     </div>
-</div>
 
     <script src="script.js"></script>
 </body>
