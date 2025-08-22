@@ -1675,7 +1675,6 @@ window.addEventListener('click', function (event) {
     }
 });
 // 清除文明历史记录
-// 清除文明历史记录
 function clearCivilizationHistory() {
     try {
         localStorage.removeItem('civilizationHistory');
@@ -1687,6 +1686,12 @@ function clearCivilizationHistory() {
 }
 
 // 确保元素存在后再绑定事件
+const clearHistoryBtn = document.getElementById('clear-history-btn');
+if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener('click', clearCivilizationHistory);
+}
+// 删除重复且可能出错的绑定代码
+
 
 civilizationId = getNextCivilizationId();
 randomizeBodies(); // 默认随机生成
