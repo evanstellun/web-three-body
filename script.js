@@ -283,7 +283,7 @@ function randomizeBodies() {
     if (!lastCivilizationRecorded && time > 0) {
         const existenceTime = time - civilizationStartTime;
         const era = getCivilizationEra(existenceTime);
-        recordCivilization("被观察者关闭了", existenceTime.toFixed(2), era);
+        recordCivilization("被观察者关闭", existenceTime.toFixed(2), era);
     }
 
     // 重置文明计数器和时间
@@ -568,12 +568,12 @@ function showTemperatureMessage(message) {
 
     // 定义不同温度情况下的多种描述
     const coldMessages = [
-        `第${civilizationId}号文明在无限的凛冬下毁灭了`,
+        `第${civilizationId}号文明在无尽的凛冬下毁灭了`,
     ];
 
     const hotMessages = [
 
-        `第${civilizationId}号文明在阳光的烈焰下熊熊燃烧`,
+        `第${civilizationId}号文明在阳光的烈焰下毁灭了`,
     ];
 
     // 根据消息内容选择合适的描述集合
@@ -593,7 +593,6 @@ function showTemperatureMessage(message) {
     const existenceTime = time - civilizationStartTime;
     const era = getCivilizationEra(existenceTime);
     
-    // 如果文明存活时间超过400，它将开启星际殖民（但这里只处理毁灭情况）
     finalMessage += `，该文明发展到${era}`;
 
     const temperatureMessage = document.getElementById('temperature-message');
@@ -735,7 +734,7 @@ function getPlanetPColor(temperatureC) {
 
 // 在 script.js 中添加获取文明所处的时代函数
 function getCivilizationEra(existenceTime) {
-    if (existenceTime < 100) return "原始时代";
+    if (existenceTime < 50) return "原始时代";
     if (existenceTime < 250) return "封建时代";
     if (existenceTime < 300) return "蒸汽时代";
     if (existenceTime < 333) return "电气时代";
@@ -1189,7 +1188,7 @@ function showCivilizationHistory() {
                 } else if (entry.destruction.includes("凛冬")) {
                     destructionType = "在低温下毁灭";
                 } else if (entry.destruction.includes("星际")) {
-                    destructionType = "飞向了新的家园";
+                    destructionType = "飞向了新家园";
                 }
 
                 const row = document.createElement('tr');
@@ -1435,7 +1434,7 @@ document.getElementById('speed-control').addEventListener('input', (e) => {
 
 // 更新初始化时的速度显示和默认值
 speedFactor = 1.0; // 默认1倍速
-document.getElementById('speed-control').value = 25; // 设置滑块位置对应1倍速
+document.getElementById('speed-control').value = 25; // 设置滑块位置对应100倍速
 document.getElementById('speed-value').textContent = speedFactor.toFixed(1) + 'x';
 // 窗口大小调整
 window.addEventListener('resize', () => {
