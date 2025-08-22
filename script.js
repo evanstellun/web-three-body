@@ -1448,7 +1448,10 @@ document.getElementById('toggle-controls').addEventListener('click', function() 
     const controlsContainer = document.getElementById('controls-container');
     const toggleBtn = document.getElementById('toggle-controls');
     const controlsContent = document.getElementById('controls-content');
-    
+if (controlsContent) {
+    controlsContent.style.display = 'block';
+}
+document.getElementById('toggle-controls').textContent = '收起';
     if (controlsContainer.classList.contains('collapsed')) {
         controlsContainer.classList.remove('collapsed');
         toggleBtn.textContent = '收起';
@@ -1664,7 +1667,6 @@ document.getElementById('updateBtn').addEventListener('click', resetSimulation);
 document.getElementById('randomizeBtn').addEventListener('click', randomizeBodies); // 重开一局
 
 // 文明历史按钮事件
-document.getElementById('civilization-history-btn').addEventListener('click', showCivilizationHistory);
 document.querySelector('.close').addEventListener('click', closeCivilizationHistory);
 window.addEventListener('click', function (event) {
     const modal = document.getElementById('civilization-history-modal');
@@ -1685,15 +1687,7 @@ function clearCivilizationHistory() {
 }
 
 // 确保元素存在后再绑定事件
-const clearHistoryBtn = document.getElementById('clear-history-btn');
-if (clearHistoryBtn) {
-    clearHistoryBtn.addEventListener('click', clearCivilizationHistory);
-}
 
-// 在适当的事件监听器绑定位置添加以下代码
-document.getElementById('clear-history-btn').addEventListener('click', clearCivilizationHistory);
-// 初始化并启动模拟
-// 初始化并启动模拟
 civilizationId = getNextCivilizationId();
 randomizeBodies(); // 默认随机生成
 // 设置默认视角为三个正半轴围成的象限的中线朝向原点
