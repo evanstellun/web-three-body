@@ -18,12 +18,17 @@ let collisions = [];
 let centerBody = null; // 用于跟踪聚焦的天体
 let selectedBody = null; // 用于跟踪选中的天体
 let lastTemperatureMessage = ""; // 用于跟踪上次显示的温度消息
+
+// 文明历史相关变量
 let civilizationId = 1;
 let civilizationStartTime = 0;
 let lastCivilizationRecorded = false;
+
 // 天体轨迹历史记录
 const trailLength = 100; // 移动端减少轨迹点数量以提高性能
 const trails = {}; // 存储每个天体的轨迹点
+
+// 三体名句
 const quotes = [
     "不要回答！不要回答！不要回答！",
     "消灭人类暴政，世界属于三体！",
@@ -99,11 +104,13 @@ class CelestialBody {
         this.vy = vy;
         this.vz = vz;
         this.color = color;
+        // 减小天体半径（质量不变）
         this.radius = Math.cbrt(mass) * 0.5;
     }
 }
 
 // 初始化天体
+// 初始化天体（保存初始状态）
 let initialBodies = [];
 
 function initBodies() {
@@ -139,6 +146,7 @@ function saveInitialBodies() {
     }));
 }
 
+// 更新UI控件值
 // 更新UI控件值
 function updateUI() {
     // 为每个存在的天体更新UI
@@ -214,6 +222,7 @@ function getNextCivilizationId() {
 }
 
 // 记录文明历史
+// 修改 showCivilizationHistory 函数以显示文明发展状态
 function showCivilizationHistory() {
     const modal = document.getElementById('civilization-history-modal');
     const tableBody = document.getElementById('civilization-history-body');
@@ -244,10 +253,6 @@ function showCivilizationHistory() {
                           entry.destruction.includes("夜空升起") ||
                           entry.destruction.includes("氮氧凝固")) {
                     destructionType = "在低温下毁灭";
-                } else if (entry.destruction.includes("飞向了新的家园")) {
-                    destructionType = "飞向了新的家园";
-                } else if (entry.destruction.includes("毁于核战争")) {
-                    destructionType = "毁于核战争";
                 }
 
                 const row = document.createElement('tr');
@@ -272,17 +277,18 @@ function showCivilizationHistory() {
         modalBody.scrollTop = modalBody.scrollHeight;
     }, 100);
 }
-// 随机生成天体参数
+// 修改 randomizeBodies 函数
 function randomizeBodies() {
-    // 如果上一个文明还没有毁灭，记录它被关闭
+    // 如果上一个文明还没有毁灭，记录它繁荣昌盛
     if (!lastCivilizationRecorded && time > 0) {
         const existenceTime = time - civilizationStartTime;
         const era = getCivilizationEra(existenceTime);
         recordCivilization("被观察者关闭了", existenceTime.toFixed(2), era);
     }
 
-    // 重置文明计数器
-    civilizationStartTime = 0; // 重置为0而不是time
+    // 重置文明计数器和时间
+    time = 0;  // 添加这一行，重置时间
+    civilizationStartTime = time;
     lastCivilizationRecorded = false; // 重置文明记录标志
     civilizationId = getNextCivilizationId();
 
@@ -354,20 +360,16 @@ function randomizeBodies() {
     // 重置温度消息，确保新文明可以触发温度警告
     lastTemperatureMessage = "";
 
-    // 重置时间
-    time = 0;
-    civilizationStartTime = 0;
-    
-    // 更新UI中的时间显示
-    document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
-
     // 保存当前状态作为新的初始状态
     saveInitialBodies();
     
     updateUI();
+    
+    // 更新UI中的时间显示
+    document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
 }
 function resetSimulation() {
-    time = 0;
+    time = 0; // 确保时间重置为0
     // 不再重置视角参数
     // scale = 1;
     // offsetX = 0;
@@ -406,10 +408,10 @@ function resetSimulation() {
         trails[body.name] = [];
     }
     
+    updateUI();
+    
     // 更新UI中的时间显示
     document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
-    
-    updateUI();
 }
 // 计算两个天体之间的引力
 function calculateGravity(body1, body2) {
@@ -433,6 +435,10 @@ function calculateGravity(body1, body2) {
 }
 
 // 检查碰撞
+// 检查碰撞
+// 检查碰撞
+// 修改 checkCollisions 函数中的相关部分
+// 修改 checkCollisions 函数
 function checkCollisions() {
     for (let i = 0; i < bodies.length; i++) {
         for (let j = i + 1; j < bodies.length; j++) {
@@ -595,7 +601,7 @@ function showTemperatureMessage(message) {
     const existenceTime = time - civilizationStartTime;
     const era = getCivilizationEra(existenceTime);
     
-    // 如果文明存活时间超过400，它将开启星际殖民
+    // 如果文明存活时间超过400，它将开启星际殖民（但这里只处理毁灭情况）
     finalMessage += `，该文明发展到${era}`;
 
     const temperatureMessage = document.getElementById('temperature-message');
@@ -842,6 +848,8 @@ function project3D(x, y, z) {
         sizeFactor: sizeFactor
     };
 }
+
+// 绘制无限立体网格
 // 绘制无限立体网格
 function drawGrid() {
     // 计算当前视图中心点
@@ -1166,25 +1174,6 @@ function showQuote() {
 }
 
 // 显示文明历史
-// 在 script.js 中添加检查核战争的函数
-function checkNuclearWar() {
-    // 只有当行星P存在且文明尚未记录时才检查
-    const planetP = bodies.find(body => body.name === 'p');
-    if (!planetP || lastCivilizationRecorded) return;
-    
-    const existenceTime = time - civilizationStartTime;
-    
-    // 只在原子时代（333-366时间单位）检查核战争
-    if (existenceTime >= 333 && existenceTime < 366) {
-        // 10%概率发生核战争
-        if (Math.random() < 0.1) {
-            const era = getCivilizationEra(existenceTime);
-            showNuclearWarMessage(era);
-            recordCivilization("毁于核战争", existenceTime.toFixed(2), era);
-            lastCivilizationRecorded = true;
-        }
-    }
-}
 // 修改 showCivilizationHistory 函数
 function showCivilizationHistory() {
     const modal = document.getElementById('civilization-history-modal');
@@ -1220,6 +1209,8 @@ function showCivilizationHistory() {
                     destructionType = "在低温下毁灭";
                 } else if (entry.destruction.includes("飞向了新的家园")) {
                     destructionType = "飞向了新的家园";
+                } else if (entry.destruction.includes("毁于核战争")) {
+                    destructionType = "毁于核战争";
                 }
 
                 const row = document.createElement('tr');
@@ -1265,9 +1256,6 @@ function animate() {
 
     // 检查文明是否达到里程碑
     checkCivilizationMilestone();
-    
-    // 检查是否发生核战争
-    checkNuclearWar();
 
     // 检查温度并显示相应消息（仅当文明尚未记录时）
     if (temperature !== '--' && !lastCivilizationRecorded) {
@@ -1280,30 +1268,6 @@ function animate() {
     }
 
     requestAnimationFrame(animate);
-}
-// 添加显示核战争消息的函数
-function showNuclearWarMessage(era) {
-    // 核战争的多种描述
-    const nuclearWarMessages = [
-        `第${civilizationId}号文明掌握了原子能，却未能掌控自己`,
-        `第${civilizationId}号文明在核子烈焰中化为尘埃`,
-        `第${civilizationId}号文明的智慧没能拯救自己，核战争让一切归零`,
-        `第${civilizationId}号文明在原子时代的黎明中走向黄昏`,
-        `第${civilizationId}号文明在蘑菇云下结束了原子时代`,
-        `第${civilizationId}号文明的原子能技术最终毁灭了自己`
-    ];
-    
-    // 随机选择一种描述
-    const message = nuclearWarMessages[Math.floor(Math.random() * nuclearWarMessages.length)];
-    const finalMessage = `${message}，该文明发展到${era}`;
-    
-    const temperatureMessage = document.getElementById('temperature-message');
-    temperatureMessage.textContent = finalMessage;
-    temperatureMessage.style.display = 'block';
-    
-    setTimeout(() => {
-        temperatureMessage.style.display = 'none';
-    }, 5000);
 }
 // 鼠标事件处理
 canvas.addEventListener('mousedown', (e) => {
@@ -1641,9 +1605,6 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
             
             // 导入参数后不计算文明兴衰
             lastCivilizationRecorded = true;
-            
-            // 重置时间显示
-            document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
         } catch (error) {
             alert('参数文件解析失败：' + error.message);
         }
@@ -1712,7 +1673,10 @@ const clearHistoryBtn = document.getElementById('clear-history-btn');
 if (clearHistoryBtn) {
     clearHistoryBtn.addEventListener('click', clearCivilizationHistory);
 }
+
+// 在适当的事件监听器绑定位置添加以下代码
 document.getElementById('clear-history-btn').addEventListener('click', clearCivilizationHistory);
+// 初始化并启动模拟
 // 初始化并启动模拟
 civilizationId = getNextCivilizationId();
 randomizeBodies(); // 默认随机生成
