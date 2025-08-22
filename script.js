@@ -568,20 +568,12 @@ function showTemperatureMessage(message) {
 
     // 定义不同温度情况下的多种描述
     const coldMessages = [
-        `第${civilizationId}号文明被冻结在了零下100°C的严寒之下`,
         `第${civilizationId}号文明在无限的凛冬下毁灭了`,
-        `第${civilizationId}号文明的太阳落下了，然后再也没有升起……`,
-        `洁白的雪花落在第${civilizationId}号文明的土地上——那是大气的氮氧凝固的雪花`,
-        `第${civilizationId}号文明的夜空升起了三颗飞星`,
-        `一轮太阳在第${civilizationId}号文明的上空熄灭了`
     ];
 
     const hotMessages = [
-        `一轮巨日从第${civilizationId}号文明的地平线升起，它落下时已经抹去了所有文明的痕迹`,
-        `第${civilizationId}号文明在烈焰下熊熊燃烧`,
-        `第${civilizationId}号文明观测到了飞星不动，然后在烈日下毁灭了`,
-        `第${civilizationId}号文明在双日凌空的高温下毁灭了`,
-        `很遗憾，熔融的地壳没有保留第${civilizationId}号文明的任何痕迹`
+
+        `第${civilizationId}号文明在阳光的烈焰下熊熊燃烧`,
     ];
 
     // 根据消息内容选择合适的描述集合
@@ -1192,25 +1184,12 @@ function showCivilizationHistory() {
             civilizations.forEach(entry => {
                 // 根据灭亡消息内容判断是高温还是低温毁灭
                 let destructionType = entry.destruction;
-                if (entry.destruction.includes("烈焰") || 
-                    entry.destruction.includes("高温") || 
-                    entry.destruction.includes("巨日") ||
-                    entry.destruction.includes("双日凌空") ||
-                    entry.destruction.includes("熔融") ||
-                    entry.destruction.includes("飞星不动")) {
+                if (entry.destruction.includes("烈焰")) {
                     destructionType = "在高温下毁灭";
-                } else if (entry.destruction.includes("凛冬") || 
-                          entry.destruction.includes("严寒") || 
-                          entry.destruction.includes("太阳落下") ||
-                          entry.destruction.includes("雪花") ||
-                          entry.destruction.includes("熄灭") ||
-                          entry.destruction.includes("夜空升起") ||
-                          entry.destruction.includes("氮氧凝固")) {
+                } else if (entry.destruction.includes("凛冬")) {
                     destructionType = "在低温下毁灭";
-                } else if (entry.destruction.includes("飞向了新的家园")) {
+                } else if (entry.destruction.includes("星际")) {
                     destructionType = "飞向了新的家园";
-                } else if (entry.destruction.includes("毁于核战争")) {
-                    destructionType = "毁于核战争";
                 }
 
                 const row = document.createElement('tr');
@@ -1292,6 +1271,7 @@ canvas.addEventListener('mousemove', (e) => {
     }
 });
 
+
 canvas.addEventListener('mouseup', (e) => {
     isDragging = false;
 
@@ -1306,9 +1286,12 @@ canvas.addEventListener('mouseup', (e) => {
         } else {
             selectedBody = null;
             document.getElementById('body-info').style.display = 'none';
+            // 显示操作说明窗口
+            document.getElementById('info').style.display = 'block';
         }
     }
 });
+
 
 canvas.addEventListener('mouseleave', () => {
     isDragging = false;
@@ -1428,6 +1411,8 @@ canvas.addEventListener('touchend', (e) => {
         } else {
             selectedBody = null;
             document.getElementById('body-info').style.display = 'none';
+            // 显示操作说明窗口
+            document.getElementById('info').style.display = 'block';
         }
     }
 });
@@ -1459,19 +1444,50 @@ window.addEventListener('resize', () => {
 });
 
 // 控制面板展开/收起
-document.getElementById('toggle-controls').addEventListener('click', function () {
-    const content = document.getElementById('controls-content');
-    const button = this;
-
-    if (content.style.display === 'none' || content.style.display === '') {
-        content.style.display = 'grid';
-        button.textContent = '收起';
+// ... existing code ...
+document.getElementById('toggle-controls').addEventListener('click', function() {
+    const controlsContainer = document.getElementById('controls-container');
+    const toggleBtn = document.getElementById('toggle-controls');
+    const controlsContent = document.getElementById('controls-content');
+    
+    if (controlsContainer.classList.contains('collapsed')) {
+        controlsContainer.classList.remove('collapsed');
+        toggleBtn.textContent = '收起';
+        controlsContent.style.display = 'grid';
     } else {
-        content.style.display = 'none';
-        button.textContent = '展开';
+        controlsContainer.classList.add('collapsed');
+        toggleBtn.textContent = '展开';
+        controlsContent.style.display = 'none';
     }
 });
 
+function showBodyInfo(body) {
+    selectedBody = body;
+    document.getElementById('body-name').textContent = body.name;
+    document.getElementById('body-mass').textContent = body.mass;
+    document.getElementById('body-velocity').textContent = `${Math.sqrt(body.vx**2 + body.vy**2 + body.vz**2).toFixed(2)}`;
+    
+    const bodyInfo = document.getElementById('body-info');
+    const infoPanel = document.getElementById('info');
+    
+    // 隐藏操作说明窗口
+    infoPanel.style.display = 'none';
+    // 显示天体信息窗口
+    bodyInfo.style.display = 'block';
+}
+
+// 添加天体信息窗口关闭按钮事件
+if(document.getElementById('toggle-body-info')) {
+    document.getElementById('toggle-body-info').addEventListener('click', function() {
+        const bodyInfo = document.getElementById('body-info');
+        const infoPanel = document.getElementById('info');
+        
+        bodyInfo.style.display = 'none';
+        // 重新显示操作说明窗口
+        infoPanel.style.display = 'block';
+        selectedBody = null;
+    });
+}
 // 操作指南展开/收起
 document.getElementById('toggle-info').addEventListener('click', function () {
     const content = document.getElementById('info-content');
@@ -1632,7 +1648,7 @@ function checkCivilizationMilestone() {
 
 // 添加显示星际殖民消息的函数
 function showInterstellarMessage(era) {
-    const message = `第${civilizationId}号文明开启了星际殖民，第一舰队已经启航，目标是四光年外的一个只有一颗太阳的稳定世界……`;
+    const message = `第${civilizationId}号文明开启了星际探索，第一舰队已经启航，目标是四光年外的一个只有一颗太阳的稳定世界……`;
     
     const temperatureMessage = document.getElementById('temperature-message');
     temperatureMessage.textContent = message;
@@ -1644,6 +1660,7 @@ function showInterstellarMessage(era) {
 }
 
 // 按钮事件绑定
+document.getElementById('show-history-btn').addEventListener('click', showCivilizationHistory);
 document.getElementById('updateBtn').addEventListener('click', resetSimulation); // 重新模拟使用初始数据
 document.getElementById('randomizeBtn').addEventListener('click', randomizeBodies); // 重开一局
 

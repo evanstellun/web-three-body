@@ -1,3 +1,4 @@
+/* 基础样式重置与全局设置 */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -12,8 +13,11 @@ body {
     color: #ffffff;
     height: 100vh;
     touch-action: none;
+    /* 科技感背景 */
+    background-image: radial-gradient(circle at center, rgba(0, 50, 100, 0.3) 0%, rgba(0, 0, 0, 0.9) 70%);
 }
 
+/* 模拟区域样式 */
 #container {
     position: relative;
     width: 100vw;
@@ -27,6 +31,30 @@ body {
     height: 100%;
 }
 
+/* 网格背景效果 */
+#simulation-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: calc(100% - 60px); /* 从底部全屏，控制面板会覆盖在上面 */
+}
+
+#simulation-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: linear-gradient(rgba(0, 204, 255, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 204, 255, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* 引用文字区域 */
 #quotes-container {
     position: absolute;
     top: 0;
@@ -55,22 +83,29 @@ body {
     font-family: 'Courier New', monospace;
 }
 
-#info {
+/* 信息面板样式 */
+#info, #body-info {
     position: absolute;
     top: 70px;
     right: 20px;
-    background: rgba(0, 0, 0, 0.8);
-    color: #cccccc;
+    background: linear-gradient(135deg, rgba(10, 25, 47, 0.9), rgba(15, 30, 60, 0.85));
+    color: #e0f7ff;
     padding: 15px;
     border-radius: 5px;
     z-index: 100;
     font-size: 14px;
     max-width: 300px;
-    border: 1px solid #333333;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(0, 204, 255, 0.5);
+    box-shadow: 0 0 15px rgba(0, 204, 255, 0.3), inset 0 0px 10px rgba(0, 204, 255, 0.05);
+    backdrop-filter: blur(8px);
+    transform: perspective(500px) rotateX(2deg);
 }
 
-#info h3 {
+#body-info {
+    display: none;
+}
+
+#info h3, #body-info h3 {
     margin-top: 0;
     color: #00ccff;
     border-bottom: 1px solid #333333;
@@ -82,88 +117,75 @@ body {
     align-items: center;
 }
 
-#info p {
+#info p, #body-info p {
     margin: 8px 0;
     line-height: 1.4;
 }
 
-#toggle-info {
+#toggle-info, #toggle-controls {
     background: none;
     border: none;
     color: #00ccff;
     cursor: pointer;
     font-size: 16px;
-    padding: 0;
-    width: 20px;
-    height: 20px;
+    padding: 0 10px;
+    width: auto;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
+    white-space: nowrap;
+}
+
+/* 碰撞和温度消息 */
+#collision-message, #temperature-message {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 15px 30px;
+    border-radius: 5px;
+    font-size: 18px;
+    display: none;
+    z-index: 200;
+    text-align: center;
+    max-width: 90%;
+    font-family: 'Courier New', monospace;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #00ccff;
+    box-shadow: 0 0 15px rgba(0, 204, 255, 0.3);
+    backdrop-filter: blur(5px);
 }
 
 #collision-message {
-    position: absolute;
     top: 70px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255, 0, 0, 0.2);
-    color: #ff3333;
-    padding: 15px 30px;
-    border-radius: 5px;
-    font-size: 18px;
-    display: none;
-    z-index: 200;
-    border: 1px solid #ff3333;
-    text-align: center;
-    max-width: 90%;
-    font-family: 'Courier New', monospace;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    color: #00ccff;
 }
 
 #temperature-message {
-    position: absolute;
-    top: 130px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255, 165, 0, 0.2);
-    color: #ff9900;
-    padding: 15px 30px;
-    border-radius: 5px;
-    font-size: 18px;
-    display: none;
-    z-index: 200;
-    border: 1px solid #ff9900;
-    text-align: center;
-    max-width: 90%;
-    font-family: 'Courier New', monospace;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    top: 140px;
+    color: #00ccff;
 }
 
-/* 新增：模拟区域容器 */
-#simulation-container {
-    position: absolute;
-    top: 60px;
-    /* 为quotes-container留出空间 */
-    left: 0;
-    width: 100%;
-    height: calc(100% - 250px);
-    /* 为控制面板留出空间 */
-}
-
-/* 新增：控制面板容器 */
+/* 控制面板样式 */
 #controls-container {
     position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
-    background: rgba(0, 0, 0, 0.9);
-    border-top: 1px solid #333333;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(10, 18, 35, 0.95));
+    border-top: 1px solid rgba(0, 204, 255, 0.5);
     z-index: 150;
     padding: 15px;
     max-height: 50vh;
     overflow-y: auto;
     height: 250px;
-    /* 固定高度 */
+    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 204, 255, 0.1);
+    transition: transform 0.3s ease-out;
+    transform-origin: bottom center;
+}
+
+#controls-container.collapsed {
+    transform: translateY(calc(100% - 45px)); /* 只留下标题栏 */
 }
 
 #controls-header {
@@ -173,29 +195,15 @@ body {
     margin-bottom: 15px;
     padding-bottom: 10px;
     border-bottom: 1px solid #333333;
+    cursor: pointer;
 }
 
 #controls-header h3 {
     margin: 0;
-    color: #00ccff;
+    color: #66ccff;
     font-size: 20px;
     font-weight: normal;
-}
-
-#toggle-controls {
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid #333333;
-    color: #00ccff;
-    border-radius: 3px;
-    padding: 5px 10px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.3s ease;
-    font-family: 'Courier New', monospace;
-}
-
-#toggle-controls:hover {
-    background: rgba(0, 50, 100, 0.5);
+    text-shadow: 0 0 5px rgba(102, 204, 255, 0.5);
 }
 
 #controls-content {
@@ -205,38 +213,114 @@ body {
     margin-bottom: 15px;
 }
 
-.celestial-body {
-    background: rgba(20, 20, 20, 0.8);
+/* 天体和速度控制样式 */
+.celestial-body, #speed-container {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(22, 31, 53, 0.85));
     border-radius: 5px;
-    padding: 12px;
-    border: 1px solid #333333;
+    padding: 15px;
+    border: 1px solid rgba(0, 204, 255, 0.3);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3), inset 0 0 10px rgba(0, 204, 255, 0.05);
 }
 
-.celestial-body strong {
-    display: block;
-    margin-bottom: 10px;
-    font-size: 16px;
-    color: #00ccff;
-    text-align: center;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #333333;
-    font-weight: normal;
-}
-
-.celestial-body div {
-    margin-bottom: 8px;
+#speed-container {
     display: flex;
     align-items: center;
+    gap: 15px;
+    margin-top: 15px;
 }
 
-label {
-    display: inline-block;
-    width: 70px;
+/* 按钮容器样式 */
+#buttons-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 15px 0;
+    border-bottom: 1px solid #333333;
+    width: 100%;
+}
+
+.main-buttons, .io-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.main-buttons {
+    flex: 1;
+    min-width: 250px;
+}
+
+/* 按钮样式 */
+button, #toggle-controls, #civilization-history-btn {
+    padding: 12px 15px;
+    background: linear-gradient(145deg, #0f172a, #1e293b);
+    border: 1px solid rgba(0, 204, 255, 0.5);
+    border-radius: 5px;
+    color: #00ccff;
     font-size: 14px;
-    color: #999999;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3), 0 0 5px rgba(0, 204, 255, 0.5);
+    position: relative;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
-input {
+button::before, #toggle-controls::before, #civilization-history-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 204, 255, 0.2), transparent);
+    transition: all 0.5s ease;
+}
+
+button:hover, #toggle-controls:hover, #civilization-history-btn:hover {
+    background: linear-gradient(145deg, #1e293b, #334155);
+    box-shadow: 0 0 15px rgba(0, 204, 255, 0.7);
+    transform: translateY(-2px);
+}
+
+button:hover::before, #toggle-controls:hover::before, #civilization-history-btn:hover::before {
+    left: 100%;
+}
+
+button:active, #toggle-controls:active, #civilization-history-btn:active {
+    transform: translateY(1px);
+}
+
+#body-info button {
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px;
+}
+
+/* 文明历史按钮 */
+#show-history-btn {
+    display: inline-flex;
+    position: relative;
+    margin: 0;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: auto;
+    max-width: none;
+}
+#civilization-history-btn {
+    display: inline-flex;
+    position: relative;
+    margin: 0;
+    flex: 0 0 auto;
+    width: 12%;
+    min-width: auto;
+    max-width: none;
+}
+/* 输入框样式 */
+input[type="text"], input[type="number"] {
     flex: 1;
     padding: 8px;
     background: rgba(30, 30, 30, 0.8);
@@ -252,71 +336,46 @@ input:focus {
     box-shadow: 0 0 5px rgba(0, 204, 255, 0.5);
 }
 
-#buttons-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    padding: 15px 0;
-    border-bottom: 1px solid #333333;
-}
-
-.main-buttons {
-    display: flex;
-    gap: 10px;
-    flex: 1;
-}
-
-.io-buttons {
-    display: flex;
-    gap: 10px;
-}
-
-button {
-    padding: 12px 15px;
-    background: rgba(0, 0, 0, 0.8);
-    border: 1px solid #333333;
-    border-radius: 3px;
-    color: #00ccff;
+label {
+    display: inline-block;
+    width: 70px;
     font-size: 14px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-family: 'Courier New', monospace;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    color: #999999;
 }
 
-button:hover {
-    background: rgba(0, 50, 100, 0.5);
-    box-shadow: 0 0 8px rgba(0, 204, 255, 0.5);
-}
-
-button:active {
-    transform: translateY(1px);
-}
-
-#speed-container {
+/* 滑块控件样式 */
+.speed-control-wrapper {
+    flex: 1;
+    position: relative;
     display: flex;
-    align-items: center;
-    gap: 15px;
-    background: rgba(20, 20, 20, 0.8);
-    padding: 15px;
-    border-radius: 5px;
-    margin-top: 15px;
-    border: 1px solid #333333;
+    flex-direction: column-reverse;
+    gap: 10px;
 }
 
-#controls-container {
-    -webkit-appearance: none;
-    appearance: none;
-}
-
-#speed-control::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 20px;
+.speed-scale {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 10px;
     height: 20px;
-    border-radius: 50%;
+}
+
+.speed-scale-min, .speed-scale-mid, .speed-scale-max {
+    font-size: 14px;
+    color: #00ccff;
+    position: relative;
+    text-shadow: 0 0 5px rgba(0, 204, 255, 0.7);
+}
+
+.speed-scale-min::after, .speed-scale-mid::after, .speed-scale-max::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 5px;
     background: #00ccff;
-    cursor: pointer;
-    box-shadow: 0 0 5px rgba(0, 204, 255, 0.8);
 }
 
 #speed-value {
@@ -326,44 +385,35 @@ button:active {
     font-family: 'Courier New', monospace;
 }
 
-/* 天体信息面板 */
-#body-info {
-    position: absolute;
-    top: 320px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.8);
-    color: #cccccc;
-    padding: 15px;
-    border-radius: 5px;
-    z-index: 100;
-    font-size: 14px;
-    max-width: 300px;
-    border: 1px solid #333333;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-    display: none;
-}
-
-#body-info h3 {
-    margin-top: 0;
-    color: #00ccff;
-    border-bottom: 1px solid #333333;
-    padding-bottom: 8px;
-    margin-bottom: 10px;
-    font-weight: normal;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-#body-info p {
-    margin: 8px 0;
-    line-height: 1.4;
-}
-
-#body-info button {
+/* 滑块样式 */
+#speed-control, input[type="range"] {
+    appearance: none;
     width: 100%;
-    margin-top: 10px;
-    padding: 8px;
+    height: 6px;
+    border-radius: 3px;
+    background: #1a1a1a;
+    outline: none;
+    border: 1px solid #00ccff;
+    margin: 0;
+}
+
+#speed-control::-webkit-slider-thumb, input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(0,204,255,0.6));
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(0, 204, 255, 0.8),
+                0 2px 4px rgba(0, 0, 0, 0.5),
+                inset 0 1px 2px rgba(255,255,255,0.3);
+    border: 1px solid rgba(0, 204, 255, 0.8);
+    transition: all 0.2s ease;
+}
+
+#speed-control::-webkit-slider-thumb:hover, input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 15px rgba(0, 204, 255, 1);
 }
 
 /* 隐藏文件输入框 */
@@ -371,110 +421,7 @@ button:active {
     display: none;
 }
 
-/* 移动端优化 */
-@media (max-width: 768px) {
-    #controls-content {
-        grid-template-columns: 1fr;
-    }
-
-    #quote {
-        font-size: 14px;
-        line-height: 50px;
-        height: 50px;
-    }
-
-    #quotes-container {
-        height: 50px;
-    }
-
-    #info,
-    #body-info {
-        top: 60px;
-        right: 10px;
-        padding: 10px;
-        font-size: 12px;
-        max-width: 200px;
-    }
-
-    #collision-message,
-    #temperature-message {
-        font-size: 14px;
-        padding: 10px 15px;
-        top: 60px;
-    }
-
-    .celestial-body div {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    label {
-        width: 100%;
-        margin-bottom: 5px;
-    }
-
-    #buttons-container {
-        flex-direction: column;
-    }
-
-    .main-buttons,
-    .io-buttons {
-        width: 100%;
-    }
-
-    button {
-        width: 100%;
-    }
-
-    #simulation-container {
-        height: calc(100% - 300px);
-        /* 移动端调整高度 */
-    }
-
-    #controls-container {
-        height: 300px;
-        /* 移动端调整高度 */
-    }
-}
-
-/* 隐藏滚动条 */
-#controls-container::-webkit-scrollbar {
-    width: 8px;
-}
-
-#controls-container::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
-}
-
-#controls-container::-webkit-scrollbar-thumb {
-    background: rgba(0, 204, 255, 0.5);
-    border-radius: 4px;
-}
-
-/* 文明历史按钮 */
-#civilization-history-btn {
-    position: absolute;
-    top: 320px;
-    left: 20px;
-    background: rgba(0, 0, 0, 0.8);
-    color: #00ccff;
-    padding: 10px 15px;
-    border-radius: 5px;
-    cursor: pointer;
-    border: 1px solid #333333;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-    z-index: 100;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-    transition: all 0.3s ease;
-}
-
-#civilization-history-btn:hover {
-    background: rgba(0, 50, 100, 0.5);
-    box-shadow: 0 0 8px rgba(0, 204, 255, 0.5);
-}
-
-/* 文明历史模态框 */
+/* 文明历史模态框样式 */
 .modal {
     display: none;
     position: fixed;
@@ -487,16 +434,18 @@ button:active {
 }
 
 .modal-content {
-    background-color: #000;
+    background-color: rgba(0, 0, 0, 0.95);
     margin: 5% auto;
     padding: 20px;
-    border: 1px solid #333;
+    border: 1px solid #00ccff;
     width: 80%;
     max-width: 800px;
     max-height: 80vh;
     border-radius: 5px;
     position: relative;
     color: #fff;
+    box-shadow: 0 0 30px rgba(0, 204, 255, 0.3);
+    backdrop-filter: blur(10px);
 }
 
 .modal-content h2 {
@@ -517,8 +466,7 @@ button:active {
     cursor: pointer;
 }
 
-.close:hover,
-.close:focus {
+.close:hover, .close:focus {
     color: #fff;
 }
 
@@ -534,8 +482,7 @@ button:active {
     color: #ccc;
 }
 
-#civilization-history-table th,
-#civilization-history-table td {
+#civilization-history-table th, #civilization-history-table td {
     padding: 12px;
     text-align: left;
     border-bottom: 1px solid #333;
@@ -553,92 +500,100 @@ button:active {
 }
 
 /* 滚动条样式 */
-.modal-body::-webkit-scrollbar {
+#controls-container::-webkit-scrollbar, .modal-body::-webkit-scrollbar {
     width: 8px;
 }
 
-.modal-body::-webkit-scrollbar-track {
+#controls-container::-webkit-scrollbar-track, .modal-body::-webkit-scrollbar-track {
     background: rgba(0, 0, 0, 0.2);
 }
 
-.modal-body::-webkit-scrollbar-thumb {
+#controls-container::-webkit-scrollbar-thumb, .modal-body::-webkit-scrollbar-thumb {
     background: rgba(0, 204, 255, 0.5);
     border-radius: 4px;
 }
 
 /* 移动端适配 */
 @media (max-width: 768px) {
-    #civilization-history-btn {
-        top: 280px;
-        left: 10px;
-        font-size: 12px;
-        padding: 8px 12px;
+    #controls-content {
+        grid-template-columns: 1fr;
     }
 
-    .modal-content {
-        width: 95%;
-        margin: 10% auto;
+    #quote {
+        font-size: 14px;
+        line-height: 50px;
+        height: 50px;
+    }
+
+    #quotes-container {
+        height: 50px;
+    }
+
+    #info, #body-info {
+        top: 60px;
+        right: 10px;
         padding: 15px;
+        font-size: 14px;
+        max-width: 280px;
+        transform: perspective(500px) rotateX(1deg);
     }
 
-    #civilization-history-table th,
-    #civilization-history-table td {
-        padding: 8px;
-        font-size: 12px;
+    #collision-message, #temperature-message {
+        font-size: 14px;
+        padding: 10px 15px;
+        top: 60px;
     }
-}
 
-/* 在style.css中添加或修改以下样式 */
-.speed-control-wrapper {
-    flex: 1;
-    position: relative;
-}
+    .celestial-body div {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 
-.speed-scale {
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 5px;
-    padding: 0 10px;
-}
+    label {
+        width: 100%;
+        margin-bottom: 5px;
+    }
 
-.speed-scale-min,
-.speed-scale-mid,
-.speed-scale-max {
-    font-size: 12px;
-    color: #999999;
-    position: absolute;
-}
+    #buttons-container {
+        flex-direction: column;
+        gap: 15px;
+    }
 
-.speed-scale-min {
-    left: 0;
-    text-align: left;
-}
+    .main-buttons, .io-buttons {
+        width: 100%;
+        flex-wrap: wrap;
+    }
 
-.speed-scale-mid {
-    left: 25%;
-    /* 四等分点位置 */
-    transform: translateX(-50%);
-    text-align: center;
-}
+    button, #civilization-history-btn {
+        flex: 1;
+        min-width: 120px;
+        padding: px 12px;
+        font-size: 13px;
+    }
 
-.speed-scale-max {
-    right: 0;
-    text-align: right;
-}
+    #simulation-container {
+        height: calc(100% - 60px);
+    }
 
-#speed-container input[type="range"] {
-    width: 100%;
-    margin: 0;
-}
+    #controls-container {
+        height: 300px;
+        padding: 10px;
+    }
 
-/* 移动端适配 */
-@media (max-width: 768px) {
+    #controls-header h3 {
+        font-size: 18px;
+    }
+
+    #toggle-controls {
+        width: 80px;
+        padding: 8px 10px;
+    }
+
     #speed-container {
         flex-direction: column;
         align-items: stretch;
-        gap: 10px;
-        padding: 10px;
+        gap: 15px;
+        padding: 15px;
     }
 
     .speed-control-wrapper {
@@ -651,49 +606,37 @@ button:active {
         box-sizing: border-box;
     }
 
-    /* 优化移动端滑块显示 */
-    @media (max-width: 768px) {
-        #speed-control {
-            width: 100%;
-            height: 30px;
-            margin: 10px 0;
-        }
-
-        #speed-control::-webkit-slider-thumb {
-            width: 25px;
-            height: 25px;
-        }
-
-        #speed-control::-moz-range-thumb {
-            width: 25px;
-            height: 25px;
-        }
+    #speed-control {
+        height: 8px;
+        margin: 10px 0;
     }
 
-    #speed-value {
-        text-align: center;
-        font-size: 16px;
+    #speed-control::-webkit-slider-thumb {
+        width: 22px;
+        height: 22px;
     }
 
-    .speed-scale-min,
-    .speed-scale-mid,
-    .speed-scale-max {
-        position: relative;
-        display: inline-block;
-        transform: none;
+    .modal-content {
+        width: 95%;
+        margin: 15% auto;
+        padding: 15px;
     }
 
-    .speed-scale-min {
-        text-align: left;
+    #civilization-history-table th, #civilization-history-table td {
+        padding: 10px 8px;
+        font-size: 13px;
     }
 
-    .speed-scale-mid {
-        text-align: center;
-        left: 0;
-        transform: none;
+    .modal-body {
+        max-height: 50vh;
     }
+}
 
-    .speed-scale-max {
-        text-align: right;
-    }
+/* 收起按钮样式优化 */
+#toggle-controls {
+    width: 80px;
+    padding: 8px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
