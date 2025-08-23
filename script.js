@@ -18,6 +18,9 @@ let collisions = [];
 let centerBody = null; // 用于跟踪聚焦的天体
 let selectedBody = null; // 用于跟踪选中的天体
 let lastTemperatureMessage = ""; // 用于跟踪上次显示的温度消息
+let isFirstPersonView = false; // 是否处于第一视角模式
+let firstPersonRotation = 0; // 第一视角下的水平旋转角度
+let verticalAngle = 0; // 垂直视角角度
 
 // 文明历史相关变量
 let civilizationId = 1;
@@ -1065,6 +1068,11 @@ function drawTrails() {
 function drawBodies() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    if (isFirstPersonView) {
+        drawFirstPersonView();
+        return;
+    }
+
     // 绘制网格
     drawGrid();
 
@@ -1164,6 +1172,342 @@ function showQuote() {
     }, 5000); // 每句显示5秒
 }
 
+// 第一视角渲染函数
+function drawFirstPersonView() {
+    const planetP = bodies.find(body => body.name === 'p');
+    if (!planetP) return;
+
+    // 绘制天穹
+    drawSkyDome();
+    
+    // 计算并绘制恒星在天穹上的位置，获取总亮度
+    const totalBrightness = drawStarsOnSkyDome(planetP);
+    
+    // 绘制地面（行星表面），根据恒星亮度调整地面亮度
+    drawGround(totalBrightness);
+    
+    // 绘制第一视角控制提示
+    drawFirstPersonControls();
+}
+
+// 绘制地面
+function drawGround(brightness = 0) {
+    // 获取三颗恒星
+    const stars = bodies.filter(body => body.name !== 'p');
+    const planetP = bodies.find(body => body.name === 'p');
+    
+    // 计算太阳的最近距离
+    let minStarDistance = Infinity;
+    stars.forEach(star => {
+        const dx = star.x - planetP.x;
+        const dy = star.y - planetP.y;
+        const dz = star.z - planetP.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        minStarDistance = Math.min(minStarDistance, distance);
+    });
+    
+    // 根据太阳距离计算地面亮度
+    const maxDistance = 300;
+    const starBrightnessFactor = Math.max(0, 1 - minStarDistance / maxDistance);
+    
+    // 结合恒星亮度和原始亮度
+    const totalBrightness = Math.max(0, Math.min(1, brightness + starBrightnessFactor * 0.8));
+    
+    // 根据恒星亮度调整地面颜色
+    const baseR = 64, baseG = 64, baseB = 64; // 深灰色 #404040
+    const brightR = 128, brightG = 128, brightB = 128; // 灰色 #808080
+    
+    // 混合基础颜色和亮色
+    const r = Math.floor(baseR + (brightR - baseR) * totalBrightness);
+    const g = Math.floor(baseG + (brightG - baseG) * totalBrightness);
+    const b = Math.floor(baseB + (brightB - baseB) * totalBrightness);
+    
+    // 绘制地面渐变
+    const groundGradient = ctx.createLinearGradient(0, canvas.height * 0.6, 0, canvas.height);
+    groundGradient.addColorStop(0, `rgb(${r}, ${g}, ${b})`);
+    groundGradient.addColorStop(0.5, `rgb(${Math.floor(r*0.9)}, ${Math.floor(g*0.9)}, ${Math.floor(b*0.9)})`);
+    groundGradient.addColorStop(1, `rgb(${Math.floor(r*0.7)}, ${Math.floor(g*0.7)}, ${Math.floor(b*0.7)})`);
+    
+    ctx.fillStyle = groundGradient;
+    ctx.fillRect(0, canvas.height * 0.6, canvas.width, canvas.height * 0.4);
+    
+    // 取消地面网格纹理，只绘制纯色地面
+}
+
+// 绘制天穹
+function drawSkyDome() {
+    // 获取三颗恒星
+    const stars = bodies.filter(body => body.name !== 'p');
+    const planetP = bodies.find(body => body.name === 'p');
+    
+    // 计算太阳的最近距离
+    let minStarDistance = Infinity;
+    stars.forEach(star => {
+        const dx = star.x - planetP.x;
+        const dy = star.y - planetP.y;
+        const dz = star.z - planetP.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        minStarDistance = Math.min(minStarDistance, distance);
+    });
+    
+    // 根据太阳距离计算天空亮度
+    const maxDistance = 300;
+    const brightnessFactor = Math.max(0, 1 - minStarDistance / maxDistance);
+    
+    // 绘制天空渐变（根据太阳距离调整亮度）
+    const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.6);
+    
+    // 基础颜色：恒星接近时显示浅天蓝色
+    const baseR = Math.floor(0 + brightnessFactor * 135);
+    const baseG = Math.floor(0 + brightnessFactor * 206);
+    const baseB = Math.floor(17 + brightnessFactor * 218);
+    
+    const midR = Math.floor(0 + brightnessFactor * 135);
+    const midG = Math.floor(0 + brightnessFactor * 206);
+    const midB = Math.floor(51 + brightnessFactor * 184);
+    
+    const horizonR = Math.floor(0 + brightnessFactor * 135);
+    const horizonG = Math.floor(0 + brightnessFactor * 206);
+    const horizonB = Math.floor(85 + brightnessFactor * 150);
+    
+    skyGradient.addColorStop(0, `rgb(${baseR}, ${baseG}, ${baseB})`);
+    skyGradient.addColorStop(0.5, `rgb(${midR}, ${midG}, ${midB})`);
+    skyGradient.addColorStop(1, `rgb(${horizonR}, ${horizonG}, ${horizonB})`);
+    
+    ctx.fillStyle = skyGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height * 0.6);
+    
+    // 绘制星星背景（太阳近时星星变暗）
+    const starBrightness = Math.max(0.1, 1 - brightnessFactor * 0.8);
+    drawStars(starBrightness);
+}
+
+// 绘制星星背景
+let starsData = null; // 存储星星数据的数组
+
+function drawStars(brightness = 1) {
+    // 如果星星数据未初始化，则生成并存储
+    if (starsData === null) {
+        starsData = [];
+        const starCount = 300; // 星星数量
+        
+        for (let i = 0; i < starCount; i++) {
+            // 生成随机位置和属性
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * (canvas.height * 0.6);
+            const sizeVariation = Math.random() * 2 + 0.3; // 0.3-2.3
+            const brightnessVariation = Math.random() * 0.5 + 0.5; // 0.5-1.0
+            const colorVariation = Math.random();
+            const r = 255;
+            const g = Math.floor(255 - colorVariation * 30);
+            const b = Math.floor(255 - colorVariation * 50);
+            
+            starsData.push({
+                x: x,
+                y: y,
+                sizeVariation: sizeVariation,
+                brightnessVariation: brightnessVariation,
+                r: r,
+                g: g,
+                b: b
+            });
+        }
+    }
+    
+    // 使用存储的星星数据绘制
+    starsData.forEach(star => {
+        const size = star.sizeVariation * brightness * star.brightnessVariation;
+        
+        ctx.fillStyle = `rgba(${star.r}, ${star.g}, ${star.b}, ${brightness * star.brightnessVariation})`;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, size, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+// 计算并绘制恒星在天穹上的位置
+function drawStarsOnSkyDome(planetP) {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height * 0.3; // 天穹中心
+    const radius = Math.min(canvas.width, canvas.height * 0.6) * 0.4; // 天穹半径
+    
+    // 获取三颗恒星
+    const stars = bodies.filter(body => body.name !== 'p');
+    let totalBrightness = 0;
+    
+    // 观察者位于行星P的位置
+    const observerX = planetP.x;
+    const observerY = planetP.y;
+    const observerZ = planetP.z; // 使用行星P的实际z坐标
+    
+    stars.forEach(star => {
+        // 计算恒星相对于观察者的位置
+        const dx = star.x - observerX;
+        const dy = star.y - observerY;
+        const dz = star.z - observerZ;
+        
+        // 计算距离
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        // 应用观察者的旋转角度（第一视角控制）
+        // 首先应用水平旋转（绕y轴）
+        const rotatedX = dx * Math.cos(firstPersonRotation) - dz * Math.sin(firstPersonRotation);
+        const rotatedZ = dx * Math.sin(firstPersonRotation) + dz * Math.cos(firstPersonRotation);
+        
+        // 然后应用垂直旋转（绕x轴）
+        const rotatedY = dy * Math.cos(verticalAngle) - rotatedZ * Math.sin(verticalAngle);
+        const finalZ = dy * Math.sin(verticalAngle) + rotatedZ * Math.cos(verticalAngle);
+        
+        // 计算仰角（相对于地平线）
+        // 仰角范围：-π/2 到 π/2（-90度到90度）
+        const elevation = Math.atan2(rotatedY, Math.sqrt(rotatedX * rotatedX + finalZ * finalZ));
+        
+        // 计算方位角（相对于正北方向）
+        const azimuth = Math.atan2(rotatedX, finalZ);
+        
+        // 将球面坐标投影到天穹上
+        // 使用等距方位投影
+        const skyX = centerX + radius * Math.cos(elevation) * Math.sin(azimuth);
+        const skyY = centerY - radius * Math.sin(elevation);
+        
+        // 取消地平线设置，恒星可以绘制到整个天穹上
+        if (elevation >= -Math.PI/2) { // 允许仰角到-90度
+            // 移除地平线限制，恒星可以绘制到任何位置
+            // 根据距离和仰角计算恒星大小和亮度
+            // 距离因子：越近越亮
+            const distanceFactor = Math.max(0.1, 1 - distance * 0.005);
+            
+            // 仰角因子：简化模型，不考虑地平线遮挡
+            const elevationFactor = 1; // 恒星在整个画面中均匀显示
+            
+            const brightness = distanceFactor * elevationFactor;
+            
+            totalBrightness += brightness;
+            
+            // 恒星大小和透明度（第一视角下更大更亮）
+            const sizeMultiplier = isFirstPersonView ? 4 : 1;
+            const brightnessMultiplier = isFirstPersonView ? 1.5 : 1;
+            
+            // 根据恒星半径和距离计算实际大小
+            // 恒星半径越大，显示越大；距离越远，显示越小
+            const starRadiusFactor = star.radius / 10; // 将恒星半径标准化
+            const distanceSizeFactor = Math.max(0.3, 800 / (distance + 80)); // 调整距离因子，让中等距离恒星更大
+            
+            // 计算基础大小：结合恒星半径和距离因素，减小近距离效果
+            const baseSize = 12 * starRadiusFactor * distanceSizeFactor * brightness;
+            
+            // 计算最大尺寸：减小最大尺寸限制，让近处恒星缩小一半
+            const maxStarSize = Math.min(canvas.width, canvas.height) * 0.2;
+            const size = Math.max(5, Math.min(maxStarSize, baseSize * sizeMultiplier));
+            const alpha = Math.max(0.3, brightness * brightnessMultiplier);
+            
+            // 判断是否为远距离恒星（飞星）
+            const isFlyingStar = distance > 450;
+            
+            if (isFlyingStar) {
+                // 飞星：纯白色，固定大小，无光晕
+                const flyingStarSize = 6; // 飞星固定大小，增大以区别于背景恒星
+                const flyingStarAlpha = 1; // 纯白色，完全不透明
+                ctx.fillStyle = `rgba(255, 255, 255, ${flyingStarAlpha})`;
+                ctx.beginPath();
+                ctx.arc(skyX, skyY, flyingStarSize, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // 近距离恒星：黄色，有光晕
+                const starR = 255;
+                const starG = 255;
+                const starB = 100;
+                
+                // 绘制恒星光晕
+                const gradient = ctx.createRadialGradient(skyX, skyY, 0, skyX, skyY, size * 2);
+                gradient.addColorStop(0, `rgba(${starR}, ${starG}, ${starB}, ${alpha})`);
+                gradient.addColorStop(0.3, `rgba(${starR}, ${starG}, ${starB}, ${alpha * 0.6})`);
+                gradient.addColorStop(0.7, `rgba(${starR}, ${starG-55}, ${starB}, ${alpha * 0.3})`);
+                gradient.addColorStop(1, `rgba(${starR}, ${starG}, ${starB}, 0)`);
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(skyX, skyY, size * 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 绘制恒星核心
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(skyX, skyY, size * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 绘制恒星主体
+                ctx.fillStyle = `rgba(${starR}, ${starG}, ${starB}, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(skyX, skyY, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+                
+                // 移除地平线附近的大气散射效果，恒星在整个画面中均匀显示
+        }
+    });
+    
+    // 返回总亮度用于调整地面亮度
+    return Math.min(1, totalBrightness);
+}
+// 绘制第一视角控制提示
+function drawFirstPersonControls() {
+    if (isFirstPersonView) {
+        // 第一视角模式下显示行星温度
+        const temperature = calculatePlanetPTemperature();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(10, 10, 300, 60);
+        
+        ctx.fillStyle = '#00ccff';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText('第一视角模式', 20, 30);
+        ctx.fillText(`行星P表面温度: ${temperature} °C`, 20, 50);
+    } else {
+        // 普通模式下显示操作说明
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(10, 10, 300, 80);
+        
+        ctx.fillStyle = '#00ccff';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText('第一视角模式', 20, 30);
+        ctx.fillText('P键: 旋转视角', 20, 50);
+        ctx.fillText('ESC键: 退出第一视角', 20, 70);
+    }
+}
+
+// 切换第一视角
+function toggleFirstPersonView() {
+    isFirstPersonView = !isFirstPersonView;
+    const btn = document.getElementById('first-person-btn');
+    
+    if (isFirstPersonView) {
+        // 进入第一视角模式
+        centerBody = null; // 取消任何聚焦
+        firstPersonRotation = 0;
+        document.body.classList.add('first-person-mode');
+        btn.classList.add('active');
+        btn.textContent = '退出第一视角';
+        
+        // 隐藏不必要的UI元素，但保持控制面板可见
+        document.getElementById('info').style.display = 'none';
+        document.getElementById('body-info').style.display = 'none';
+        // 确保控制面板在第一视角模式下仍然可见
+        document.getElementById('controls-container').style.display = 'block';
+    } else {
+        // 退出第一视角模式
+        document.body.classList.remove('first-person-mode');
+        btn.classList.remove('active');
+        btn.textContent = '第一视角';
+        
+        // 恢复UI元素
+        document.getElementById('info').style.display = 'block';
+        // 恢复控制面板显示
+        document.getElementById('controls-container').style.display = 'block';
+    }
+}
+
 // 显示文明历史
 // 修改 showCivilizationHistory 函数
 function showCivilizationHistory() {
@@ -1248,8 +1592,10 @@ function animate() {
     requestAnimationFrame(animate);
 }
 // 鼠标事件处理
+let isMouseLocked = false;
+
 canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 0) { // 仅左键拖动
+    if (e.button === 0) { // 普通模式下拖动
         isDragging = true;
         dragStart.x = e.clientX;
         dragStart.y = e.clientY;
@@ -1261,7 +1607,7 @@ canvas.addEventListener('mousemove', (e) => {
         const deltaX = e.clientX - dragStart.x;
         const deltaY = e.clientY - dragStart.y;
 
-        // 旋转视角
+        // 普通模式下的旋转
         rotationY += deltaX * 0.01;
         rotationX += deltaY * 0.01;
 
@@ -1440,6 +1786,31 @@ document.getElementById('speed-value').textContent = speedFactor.toFixed(1) + 'x
 window.addEventListener('resize', () => {
     canvas.width = window.innerWidth;
     canvas.height = document.getElementById('simulation-container').clientHeight;
+});
+
+// 键盘事件监听器
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        if (isFirstPersonView) {
+            toggleFirstPersonView(); // ESC键退出第一视角
+        }
+    } else if (e.key === 'p' || e.key === 'P') {
+        // P键旋转视角
+        if (isFirstPersonView) {
+            // 在第一视角模式下旋转视角
+            rotationY += Math.PI / 4; // 每次旋转45度
+        } else {
+            // 在普通模式下旋转视角
+            rotationY += Math.PI / 6; // 每次旋转30度
+        }
+    }
+});
+
+
+
+// 第一视角按钮事件监听器
+document.getElementById('first-person-btn').addEventListener('click', () => {
+    toggleFirstPersonView();
 });
 
 // 控制面板展开/收起

@@ -10,14 +10,17 @@
 
 <body>
     <div id="container">
+        <!-- 引用文字显示区域 -->
         <div id="quotes-container">
             <div id="quote"></div>
         </div>
 
+        <!-- 模拟画布容器 -->
         <div id="simulation-container">
             <canvas id="simulationCanvas"></canvas>
         </div>
 
+        <!-- 操作说明与基础信息面板 -->
         <div id="info">
             <h3>操作说明 <button id="toggle-info">−</button></h3>
             <div id="info-content">
@@ -31,6 +34,7 @@
             </div>
         </div>
 
+        <!-- 天体详情信息面板 -->
         <div id="body-info">
             <h3>天体信息 <button id="toggle-body-info">−</button></h3>
             <div id="body-info-content">
@@ -41,9 +45,11 @@
             </div>
         </div>
 
+        <!-- 碰撞与温度提示消息 -->
         <div id="collision-message"></div>
         <div id="temperature-message"></div>
 
+        <!-- 控制面板 -->
         <div id="controls-container">
             <div id="controls-header">
                 <h3>控制面板</h3>
@@ -54,6 +60,7 @@
                 <div class="main-buttons">
                     <button id="randomizeBtn">重开一局</button>
                     <button id="updateBtn">重新模拟</button>
+                    <button id="first-person-btn">第一视角</button>
                     <button id="show-history-btn">显示三体文明历程</button>
                     <button id="exportBtn">导出参数</button>
                     <button id="importBtn">导入参数</button>
@@ -61,7 +68,7 @@
                 </div>
             </div>
 
-            <!-- 修改HTML中的滑块 -->
+            <!-- 模拟速度控制滑块 -->
             <div id="speed-container">
                 <label>模拟速度:</label>
                 <div class="speed-control-wrapper">
@@ -75,35 +82,34 @@
                 <span id="speed-value">30.0x</span>
             </div>
         </div>
-    </div>
-    </div>
 
-    <div id="civilization-history-modal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>三体文明历程</h2>
-            <div class="modal-body">
-                <table id="civilization-history-table">
-                    <thead>
-                        <tr>
-                            <th>文明编号</th>
-                            <th>文明结局</th>
-                            <th>存在时间</th>
-                            <th>文明发展状态</th>
-                        </tr>
-                    </thead>
-                    <tbody id="civilization-history-body">
-                        <!-- 数据将通过JavaScript填充 -->
-                    </tbody>
-                </table>
-            </div>
-            <div class="modal-footer">
-                <button id="clear-history-btn">清除文明历史记录</button>
+        <!-- 文明历史记录弹窗 -->
+        <div id="civilization-history-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>三体文明历程</h2>
+                <div class="modal-body">
+                    <table id="civilization-history-table">
+                        <thead>
+                            <tr>
+                                <th>文明编号</th>
+                                <th>文明结局</th>
+                                <th>存在时间</th>
+                                <th>文明发展状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="civilization-history-body">
+                            <!-- 数据将通过JavaScript填充 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button id="clear-history-btn">清除文明历史记录</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <script src="script.js"></script>
+        <script src="script.js"></script>
 </body>
 
 </html>
