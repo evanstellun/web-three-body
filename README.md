@@ -19,7 +19,7 @@
 
 聚焦到某个天体为视角中心
 ## Demo站点
-链接：[使用netlify搭建的Demo站点](https://rococo-fox-d8da17.netlify.app/)，与本存储库实时同步
+链接：[使用netlify搭建的Demo站点](https://3body.netlify.app/)，与本存储库实时同步
 ## 特别鸣谢
 《三体》系列作者，雨果奖得主——刘慈欣
 
