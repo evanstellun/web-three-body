@@ -1379,17 +1379,9 @@ function updateStarsInFirstPersonView(planetP) {
         const projectionX = dx;
         const projectionZ = dz;
         
-        // 3. 计算投影线与观察者视角投影线的夹角（经度）
-        // 观察者视角由firstPersonRotation（水平旋转）和verticalAngle（垂直旋转）控制
-        
-        // 计算投影线的方位角
-        const projectionAzimuth = Math.atan2(projectionX, projectionZ);
-        
-        // 观察者视角的投影方位角（考虑水平旋转）
-        const observerAzimuth = firstPersonRotation;
-        
-        // 计算经度差（投影线与观察者视角投影线的夹角）
-        let longitude = projectionAzimuth - observerAzimuth;
+        // 3. 计算投影线的方位角（经度）
+        // 仅基于恒星的实际位置，不受观察者视角旋转影响
+        let longitude = Math.atan2(projectionX, projectionZ);
         
         // 创建一个表示天穹旋转的向量
         // 由于天穹绕X轴旋转，我们需要应用这个旋转到太阳的位置向量上
@@ -2274,8 +2266,9 @@ canvas.addEventListener('mousemove', (e) => {
             // 鼠标左右移动：以头顶脚尖线为中心旋转（水平旋转）
             firstPersonRotation += deltaX * 0.01;
             
-            // 鼠标上下移动：抬头低头（垂直旋转）
-            verticalAngle += deltaY * 0.01;
+            // 鼠标上下移动：向下拖动抬头，向上拖动低头（垂直旋转）
+            // 反转了deltaY的方向，使向下拖动时抬头（减小verticalAngle），向上拖动时低头（增大verticalAngle）
+            verticalAngle -= deltaY * 0.01;
             
             // 限制垂直角度范围（-85度到85度）
             verticalAngle = Math.max(-Math.PI * 0.472, Math.min(Math.PI * 0.472, verticalAngle));
@@ -2318,8 +2311,22 @@ canvas.addEventListener('mouseleave', () => {
 
 canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    scale *= e.deltaY > 0 ? 0.9 : 1.1;
-    scale = Math.max(0.1, Math.min(scale, 10));
+    
+    if (isFirstPersonView) {
+        // 第一视角模式下：鼠标滚轮调整视角远近（通过改变相机FOV）
+        if (firstPersonCamera) {
+            // deltaY为正表示向下滚动（缩小视角，FOV增大），为负表示向上滚动（放大视角，FOV减小）
+            firstPersonCamera.fov += e.deltaY * 0.1;
+            // 限制FOV范围在30到90之间，确保视角不会过大或过小
+            firstPersonCamera.fov = Math.max(30, Math.min(90, firstPersonCamera.fov));
+            // 更新相机投影矩阵
+            firstPersonCamera.updateProjectionMatrix();
+        }
+    } else {
+        // 普通模式下保持原有的缩放逻辑
+        scale *= e.deltaY > 0 ? 0.9 : 1.1;
+        scale = Math.max(0.1, Math.min(scale, 10));
+    }
 });
 
 // 双击事件处理
@@ -2397,8 +2404,9 @@ canvas.addEventListener('touchmove', (e) => {
             // 触摸左右移动：以头顶脚尖线为中心旋转（水平旋转）
             firstPersonRotation += deltaX * 0.01;
             
-            // 触摸上下移动：抬头低头（垂直旋转）
-            verticalAngle += deltaY * 0.01;
+            // 触摸上下移动：向下拖动抬头，向上拖动低头（垂直旋转）
+            // 反转了deltaY的方向，使向下拖动时抬头（减小verticalAngle），向上拖动时低头（增大verticalAngle）
+            verticalAngle -= deltaY * 0.01;
             
             // 限制垂直角度范围（-85度到85度）
             verticalAngle = Math.max(-Math.PI * 0.472, Math.min(Math.PI * 0.472, verticalAngle));
