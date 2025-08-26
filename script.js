@@ -1391,6 +1391,10 @@ function updateStarsInFirstPersonView(planetP) {
         // 计算经度差（投影线与观察者视角投影线的夹角）
         let longitude = projectionAzimuth - observerAzimuth;
         
+        // 创建一个表示天穹旋转的向量
+        // 由于天穹绕X轴旋转，我们需要应用这个旋转到太阳的位置向量上
+        // 这里先不直接添加skyRotation，而是在计算最终位置时应用向量旋转
+        
         // 将经度标准化到[-π, π]范围
         while (longitude > Math.PI) longitude -= 2 * Math.PI;
         while (longitude < -Math.PI) longitude += 2 * Math.PI;
@@ -1407,28 +1411,65 @@ function updateStarsInFirstPersonView(planetP) {
         // 将经度和纬度转换为3D空间中的位置
         const skyRadius = 490; // 稍微小于天穹半径
         
-        // 地面遮挡检测：如果恒星位置低于地平线且被地面遮挡，则不显示
+        // 地面遮挡检测：考虑恒星大小，让恒星可以部分显示直到完全沉入地平线
         // 计算恒星在观察者坐标系中的实际高度（使用相对于地面的纬度）
         const starHeight = skyRadius * Math.sin(latitude);
         
-        // 如果恒星高度低于观察者脚部位置（地面高度），则被地面遮挡
-        if (starHeight < 0) {
+        // 计算恒星大小在高度方向上的一半（考虑恒星可以部分显示）
+        // 基础大小根据距离缩放，距离越近越大，距离越远越小
+        let starSizeForVisibility = star.radius * 2;
+        const distanceScaleForVisibility = Math.max(0.1, Math.min(12, 500 / distance)); // 距离500时为原始大小，距离越近越大，最大12倍，最小0.1倍
+        
+        // 判断是否为远距离恒星（飞星）
+        const isFlyingStarForVisibility = distance > 450;
+        
+        // 计算恒星大小，飞星额外缩小
+        if (isFlyingStarForVisibility) {
+            starSizeForVisibility *= distanceScaleForVisibility * 0.3; // 飞星大小缩小到原来的30%
+        } else {
+            starSizeForVisibility *= distanceScaleForVisibility;
+        }
+        starSizeForVisibility = Math.max(0.3, Math.min(60, starSizeForVisibility)); // 最小尺寸减小到0.3
+        
+        // 计算恒星在高度方向上的一半
+        const halfStarHeight = (starSizeForVisibility / skyRadius) * 2; // 调整因子使效果更自然
+        
+        // 如果恒星完全低于地平线，则不显示
+        // 但允许恒星部分显示（当starHeight > -halfStarHeight时）
+        if (starHeight < -halfStarHeight) {
             return; // 跳过这颗恒星的绘制
         }
         
-        // 观察者视角可见性判断：考虑观察者的垂直视角
+        // 观察者视角可见性判断：考虑观察者的垂直视角和恒星大小
         // 计算恒星相对于观察者视角的可见纬度
         const visibleLatitude = latitude - verticalAngle;
         
-        // 如果可见纬度小于0，说明恒星在观察者视角下方，不显示
-        if (visibleLatitude < 0) {
+        // 如果恒星完全在观察者视角下方，则不显示
+        // 但允许恒星部分显示（当visibleLatitude > -halfStarHeight时）
+        if (visibleLatitude < -halfStarHeight) {
             return; // 跳过这颗恒星的绘制
         }
         
-        // 使用相对于地面的纬度进行投影
-        const x = skyRadius * Math.cos(latitude) * Math.sin(longitude);
-        const y = skyRadius * Math.sin(latitude);
-        const z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
+        // 计算太阳在天穹上的基础位置向量
+        let x = skyRadius * Math.cos(latitude) * Math.sin(longitude);
+        let y = skyRadius * Math.sin(latitude);
+        let z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
+        
+        // 应用天穹旋转向量 - 绕X轴旋转skyRotation角度
+        // 使用三维旋转矩阵进行向量旋转
+        const cos = Math.cos(skyRotation);
+        const sin = Math.sin(skyRotation);
+        
+        // 绕X轴旋转的旋转矩阵
+        // x保持不变
+        // y' = y*cos(θ) - z*sin(θ)
+        // z' = y*sin(θ) + z*cos(θ)
+        const yRotated = y * cos - z * sin;
+        const zRotated = y * sin + z * cos;
+        
+        // 更新位置向量
+        y = yRotated;
+        z = zRotated;
         
         // 创建恒星对象 - 根据距离动态调整大小，增强远距离变小效果
         // 基础大小根据距离缩放，距离越近越大，距离越远越小
