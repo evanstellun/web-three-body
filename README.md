@@ -5,6 +5,7 @@
 [![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com)
 [![Tech](https://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg)](https://developer.mozilla.org/)
 
+[English Version Here](README_EN.md)
 
 ## 项目介绍
 
@@ -89,3 +90,4 @@
 "弱小和无知不是生存的障碍，傲慢才是。" —— 《三体》
 
 愿我们都能在这混沌的宇宙中，找到属于自己的文明之光。
+
