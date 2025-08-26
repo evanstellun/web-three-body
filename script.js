@@ -1457,8 +1457,8 @@ function updateStarsInFirstPersonView(planetP) {
         const starSize = Math.max(0.3, Math.min(60, calculatedSize)); // 最小尺寸减小到0.3
         const starGeometry = new THREE.SphereGeometry(starSize, 32, 32); // 增加分段数使太阳更接近圆形
         
-        // 根据距离调整亮度 - 增强近距离亮度效果
-        const brightness = Math.max(0.3, Math.min(10, 2 - distance * 0.008)); // 最大亮度增加到2.5，增强近距离效果
+        // 根据距离调整亮度 - 大幅增强近距离亮度效果
+        const brightness = Math.max(0.5, Math.min(15, 3 - distance * 0.006)); // 提高基础亮度、最大亮度和影响范围
         
         let starMaterial;
         if (isFlyingStar) {
@@ -1545,16 +1545,19 @@ function updateStarsInFirstPersonView(planetP) {
 function updateGroundBrightness() {
     if (!ground) return;
     
-    // 计算所有恒星的总亮度
+    // 计算所有可见恒星的总亮度
     let totalBrightness = 0;
     starObjects.forEach(starObj => {
-        totalBrightness += starObj.brightness;
+        // 只考虑"可见"的恒星的光照
+        if (starObj.visibilityLabel === '(可见)') {
+            totalBrightness += starObj.brightness;
+        }
     });
     
-    // 根据总亮度调整地面颜色
-    const brightness = Math.min(1, totalBrightness);
-    const baseColor = new THREE.Color(0x404040); // 深灰色
-    const brightColor = new THREE.Color(0x808080); // 灰色
+    // 根据总亮度调整地面颜色 - 增强太阳对地面的亮度影响
+    const brightness = Math.min(1, totalBrightness * 0.8); // 增强亮度影响因子
+    const baseColor = new THREE.Color(0x202020); // 更深的深灰色
+    const brightColor = new THREE.Color(0xC0C0C0); // 更亮的浅灰色
     
     const finalColor = baseColor.lerp(brightColor, brightness);
     ground.material.color = finalColor;
@@ -1577,26 +1580,34 @@ function updateGroundBrightness() {
 function updateSkyDomeColor(stars, planetP) {
     if (!skyDome) return;
     
-    // 计算太阳的最近距离
+    // 计算可见太阳的最近距离
     let minStarDistance = Infinity;
-    stars.forEach(star => {
-        const dx = star.x - planetP.x;
-        const dy = star.y - planetP.y;
-        const dz = star.z - planetP.z;
-        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        minStarDistance = Math.min(minStarDistance, distance);
+    let hasVisibleStars = false;
+    
+    starObjects.forEach(starObj => {
+        // 只考虑"可见"的恒星的光照
+        if (starObj.visibilityLabel === '(可见)') {
+            hasVisibleStars = true;
+            minStarDistance = Math.min(minStarDistance, starObj.distance);
+        }
     });
     
-    // 根据太阳距离计算天空亮度和颜色
-    const maxDistance = 300;
-    const brightnessFactor = Math.max(0, 1 - minStarDistance / maxDistance);
+    // 如果没有可见的恒星，使用默认的深色天空
+    if (!hasVisibleStars) {
+        minStarDistance = 1000; // 设置一个很大的距离值
+    }
     
-    // 根据太阳距离调整天空颜色
+    // 根据太阳距离计算天空亮度和颜色 - 增强太阳对天空的亮度影响
+    const maxDistance = 400; // 增加最大距离，使太阳在更远距离时仍能影响天空
+    const brightnessFactor = Math.max(0, 1 - minStarDistance / maxDistance);
+    const enhancedBrightnessFactor = Math.pow(brightnessFactor, 0.6); // 使用幂函数增强近距离亮度效果
+    
+    // 根据太阳距离调整天空颜色 - 增强颜色变化
     // 太阳接近时：明亮的浅天蓝色
     // 太阳远离时：深蓝到黑色
-    const baseR = Math.floor(0 + brightnessFactor * 200); // 增强红色分量
-    const baseG = Math.floor(0 + brightnessFactor * 230); // 增强绿色分量
-    const baseB = Math.floor(17 + brightnessFactor * 238); // 增强蓝色分量
+    const baseR = Math.floor(0 + enhancedBrightnessFactor * 255); // 增强红色分量到最大值
+    const baseG = Math.floor(0 + enhancedBrightnessFactor * 255); // 增强绿色分量到最大值
+    const baseB = Math.floor(30 + enhancedBrightnessFactor * 225); // 增强蓝色分量，基础值提高
     
     // 创建Three.js颜色对象
     const skyColor = new THREE.Color(`rgb(${baseR}, ${baseG}, ${baseB})`);
@@ -1604,8 +1615,8 @@ function updateSkyDomeColor(stars, planetP) {
     // 更新天穹颜色
     skyDome.material.color = skyColor;
     
-    // 根据亮度调整天穹透明度
-    const opacity = Math.max(0.3, Math.min(0.9, 0.3 + brightnessFactor * 0.6));
+    // 根据亮度调整天穹透明度 - 增强太阳对天空透明度的影响
+    const opacity = Math.max(0.2, Math.min(0.95, 0.2 + enhancedBrightnessFactor * 0.75)); // 降低最小透明度，增强透明度变化
     skyDome.material.opacity = opacity;
 }
 
