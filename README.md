@@ -65,7 +65,7 @@
 
 使用Netlify搭建的Demo站点，与本存储库实时同步：
 
-[三体文明模拟器 - 在线演示](https://threebody-simulator.netlify.app/)
+[三体文明模拟器 - 在线演示](https://3body.netlify.app/)
 
 ## 项目起源
 
