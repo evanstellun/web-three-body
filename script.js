@@ -1215,8 +1215,11 @@ function initFirstPersonScene() {
     // 创建相机
     firstPersonCamera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
     
-    // 创建渲染器
-    firstPersonRenderer = new THREE.WebGLRenderer({ alpha: true });
+    // 创建渲染器 - 启用抗锯齿
+    firstPersonRenderer = new THREE.WebGLRenderer({ 
+        alpha: true,
+        antialias: true // 启用渲染器级别的抗锯齿
+    });
     firstPersonRenderer.setSize(canvas.width, canvas.height);
     firstPersonRenderer.setClearColor(0x000000, 0); // 透明背景
     
@@ -1224,22 +1227,47 @@ function initFirstPersonScene() {
     cameraContainer = new THREE.Object3D();
     firstPersonScene.add(cameraContainer);
     
-    // 相机初始位置（模拟人眼高度）
-    firstPersonCamera.position.y = 1.7;
+    // 相机初始位置（提高视角高度）
+    firstPersonCamera.position.y = 10.0;
     cameraContainer.add(firstPersonCamera);
     
-    // 创建地面
-    const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
+    // 创建格子地面（类似Minecraft超平坦模式）
+    const gridSize = 1000;
+    const gridDivisions = 100;
+    const groundGeometry = new THREE.PlaneGeometry(gridSize, gridSize, gridDivisions, gridDivisions);
+    
+    // 创建格子材质
     const groundMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x404040,
-        roughness: 0.8,
-        metalness: 0.2,
-        side: THREE.DoubleSide
+        color: 0x808080,
+        roughness: 0.9,
+        metalness: 0.1,
+        side: THREE.DoubleSide,
+        wireframe: false
     });
+    
     ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0; // 地面位于Y=0位置
     firstPersonScene.add(ground);
+    
+    // 创建格子线框 - 缓解摩尔纹效应
+    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x404040, 0x404040);
+    gridHelper.position.y = 0.01; // 稍微抬高避免z-fighting
+    // 设置网格线更粗并增强抗锯齿
+    gridHelper.material.linewidth = 3; // 增大线宽
+    gridHelper.material.antialias = true; // 启用抗锯齿
+    gridHelper.material.depthTest = false; // 禁用深度测试以减少锯齿
+    gridHelper.material.depthWrite = false; // 禁用深度写入以减少锯齿
+    
+    // 为网格线添加轻微的随机偏移来打破规律性，缓解摩尔纹
+    const gridPositions = gridHelper.geometry.attributes.position.array;
+    for (let i = 0; i < gridPositions.length; i += 3) {
+        // 只对X和Z坐标添加微小随机偏移，Y坐标保持不变
+        gridPositions[i] += (Math.random() - 0.5) * 0.1; // X轴偏移
+        gridPositions[i + 2] += (Math.random() - 0.5) * 0.1; // Z轴偏移
+    }
+    gridHelper.geometry.attributes.position.needsUpdate = true;
+    firstPersonScene.add(gridHelper);
     
     // 创建天穹（球体）
     const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
@@ -1257,11 +1285,16 @@ function initFirstPersonScene() {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
     firstPersonScene.add(ambientLight);
     
+    // 移除雾效效果
+    
     // 添加星星背景
     createStarField();
     
     firstPersonInitialized = true;
 }
+
+// 背景星星对象引用
+let starField = null;
 
 // 创建星星背景
 function createStarField() {
@@ -1289,8 +1322,8 @@ function createStarField() {
         opacity: 0.8
     });
     
-    const stars = new THREE.Points(starGeometry, starMaterial);
-    firstPersonScene.add(stars);
+    starField = new THREE.Points(starGeometry, starMaterial);
+    firstPersonScene.add(starField);
 }
 
 // 更新第一视角中的恒星位置
@@ -1397,33 +1430,35 @@ function updateStarsInFirstPersonView(planetP) {
         const y = skyRadius * Math.sin(latitude);
         const z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
         
-        // 创建恒星对象 - 根据距离动态调整大小
-        // 基础大小根据距离缩放，距离越近越大，增强近距离效果
+        // 创建恒星对象 - 根据距离动态调整大小，增强远距离变小效果
+        // 基础大小根据距离缩放，距离越近越大，距离越远越小
         const baseSize = star.radius * 2;
-        const distanceScale = Math.max(0.2, Math.min(8, 400 / distance)); // 距离400时为原始大小，距离越近越大，最大8倍
-        const starSize = Math.max(3, Math.min(50, baseSize * distanceScale)); // 最大尺寸增加到50
-        const starGeometry = new THREE.SphereGeometry(starSize, 16, 16);
-        
-        // 根据距离调整亮度 - 增强近距离亮度效果
-        const brightness = Math.max(0.3, Math.min(10, 2 - distance * 0.008)); // 最大亮度增加到2.5，增强近距离效果
+        const distanceScale = Math.max(0.1, Math.min(12, 500 / distance)); // 距离500时为原始大小，距离越近越大，最大12倍，最小0.1倍
         
         // 判断是否为远距离恒星（飞星）
         const isFlyingStar = distance > 450;
         
+        // 计算恒星大小，飞星额外缩小
+        let calculatedSize = baseSize * distanceScale;
+        if (isFlyingStar) {
+            calculatedSize *= 0.3; // 飞星大小缩小到原来的30%
+        }
+        const starSize = Math.max(0.3, Math.min(60, calculatedSize)); // 最小尺寸减小到0.3
+        const starGeometry = new THREE.SphereGeometry(starSize, 32, 32); // 增加分段数使太阳更接近圆形
+        
+        // 根据距离调整亮度 - 增强近距离亮度效果
+        const brightness = Math.max(0.3, Math.min(10, 2 - distance * 0.008)); // 最大亮度增加到2.5，增强近距离效果
+        
         let starMaterial;
         if (isFlyingStar) {
-            // 飞星：纯白色
+            // 飞星：纯白色，取消透明度设置
             starMaterial = new THREE.MeshBasicMaterial({
-                color: 0xffffff,
-                transparent: true,
-                opacity: 1
+                color: 0xffffff
             });
         } else {
-            // 近距离恒星：黄色
+            // 近距离恒星：黄色，取消透明度设置
             starMaterial = new THREE.MeshBasicMaterial({
-                color: 0xffff66,
-                transparent: true,
-                opacity: brightness
+                color: 0xffff66
             });
         }
         
@@ -1469,6 +1504,19 @@ function updateGroundBrightness() {
     
     const finalColor = baseColor.lerp(brightColor, brightness);
     ground.material.color = finalColor;
+    
+    // 更新格子线框颜色 - 始终比地面颜色亮
+    const gridHelper = firstPersonScene.children.find(child => child instanceof THREE.GridHelper);
+    if (gridHelper) {
+        // 基于地面颜色计算网格线颜色，始终比地面亮
+        const gridColor = finalColor.clone();
+        gridColor.multiplyScalar(1.5); // 将地面颜色亮度增加50%
+        // 确保颜色值在有效范围内
+        gridColor.r = Math.min(1, gridColor.r);
+        gridColor.g = Math.min(1, gridColor.g);
+        gridColor.b = Math.min(1, gridColor.b);
+        gridHelper.material.color = gridColor;
+    }
 }
 
 // 更新天空颜色根据太阳距离
@@ -1507,25 +1555,51 @@ function updateSkyDomeColor(stars, planetP) {
     skyDome.material.opacity = opacity;
 }
 
+// 用于跟踪天穹和恒星的旋转角度
+let skyRotation = 0;
+
 // 渲染第一视角场景
 function renderFirstPersonScene() {
     if (!firstPersonInitialized) return;
     
-    // 获取行星P的自转角度
-    const planetP = bodies.find(body => body.name === 'p');
-    let planetRotation = 0;
-    if (planetP && planetP.rotationAngle) {
-        planetRotation = planetP.rotationAngle;
+    // 计算每10刻旋转一圈的角度增量
+    // 根据当前速度因子调整旋转速度
+    const rotationSpeed = (2 * Math.PI) / 10; // 每10刻旋转一圈的速度
+    
+    // 只有在模拟运行时才更新旋转角度（避免暂停时继续旋转）
+    if (speedFactor > 0) {
+        // 每帧更新的角度 = 每刻旋转角度 * 0.01（因为每帧更新0.01时间单位）* 速度因子
+        skyRotation += rotationSpeed * 0.01 * speedFactor;
+        // 确保角度在0到2π之间循环
+        if (skyRotation > 2 * Math.PI) {
+            skyRotation -= 2 * Math.PI;
+        }
     }
     
     // 更新相机旋转 - 只应用用户视角控制
     cameraContainer.rotation.y = firstPersonRotation;
     firstPersonCamera.rotation.x = -verticalAngle;
     
-    // 应用行星自转：只旋转天穹，地面保持静止
-    // 观察者相对于基础面是静止的，所以相对旋转的应该是天穹
+    // 应用自定义旋转：使天穹和恒星围绕观察者初始视线方向旋转
+    // 修改旋转轴为平行于地面（X轴）
     if (skyDome) {
-        skyDome.rotation.y = planetRotation;
+        // 使用我们自己的旋转角度而不是行星自转
+        skyDome.rotation.x = skyRotation;
+    }
+    
+    // 让背景星星也随天穹一起旋转
+    if (starField) {
+        starField.rotation.x = skyRotation;
+    }
+    
+    // 让太阳和飞星也随天穹一起旋转
+    if (starObjects && starObjects.length > 0) {
+        starObjects.forEach(starObj => {
+            if (starObj.mesh) {
+                // 应用与天穹相同的旋转角度
+                starObj.mesh.rotation.x = skyRotation;
+            }
+        });
     }
     
     // 渲染场景
