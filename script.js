@@ -1500,10 +1500,29 @@ function updateStarsInFirstPersonView(planetP) {
         // 如果太阳中心在行星表面以下，且距离大于太阳半径，则完全被遮挡
         const sunEdgeToSurface = sunCenterToSurface + sunRadius;
         
-        // 判断太阳是否完全被地面遮挡
-        // 只有当太阳边缘完全在行星表面以下时才判断为不可见
-        const isCompletelyBlocked = sunEdgeToSurface < 0;
-        const visibilityLabel = isCompletelyBlocked ? '(不可见)' : '(可见)';
+        // 判断太阳的可见状态：完全可见、晨昏、完全不可见
+        // 使用太阳边界到地平线的距离作为判断标准
+        let visibilityLabel = '';
+        let visibilityRatio = 1.0; // 可见比例，用于亮度计算
+        
+        // 计算太阳边界到地平线的距离（正值表示太阳边界在地平线上方，负值表示在下方）
+        const sunEdgeDistance = sunCenterToSurface - sunRadius;
+        
+        if (sunEdgeDistance > sunRadius * 5) {
+            // 完全可见：太阳边界在地平线上方超过5倍太阳半径
+            visibilityLabel = '(可见)';
+            visibilityRatio = 1.0;
+        } else if (sunEdgeDistance < -sunRadius * 5) {
+            // 完全不可见：太阳边界在地平线下方超过5倍太阳半径
+            visibilityLabel = '(不可见)';
+            visibilityRatio = 0.0;
+        } else {
+            // 晨昏状态：太阳边界到地平线的距离在±5倍太阳半径范围内
+            visibilityLabel = '(晨昏)';
+            // 使用简单的线性插值计算可见比例，确保平滑过渡
+            const normalizedDistance = (sunEdgeDistance + sunRadius * 5) / (sunRadius * 10); // 归一化到0-1范围
+            visibilityRatio = Math.max(0, Math.min(1, normalizedDistance));
+        }
         
         // 保存到新的恒星对象数组
         newStarObjects.push({
@@ -1513,7 +1532,9 @@ function updateStarsInFirstPersonView(planetP) {
             distance: distance,
             brightness: brightness,
             typeLabel: typeLabel,
-            visibilityLabel: visibilityLabel
+            visibilityLabel: visibilityLabel,
+            visibilityRatio: visibilityRatio,
+            sunCenterToSurface: sunCenterToSurface
         });
     });
     
@@ -1545,21 +1566,26 @@ function updateStarsInFirstPersonView(planetP) {
 function updateGroundBrightness() {
     if (!ground) return;
     
-    // 计算所有可见恒星的总亮度
+    // 计算所有可见恒星的总亮度，使用简单的线性插值确保平滑过渡
     let totalBrightness = 0;
     starObjects.forEach(starObj => {
-        // 只考虑"可见"的恒星的光照
-        if (starObj.visibilityLabel === '(可见)') {
-            totalBrightness += starObj.brightness;
+        // 考虑可见恒星和晨昏状态下的恒星，根据可见比例调整亮度
+        if (starObj.visibilityLabel === '(可见)' || starObj.visibilityLabel === '(晨昏)') {
+            const ratio = starObj.visibilityRatio || 1.0;
+            totalBrightness += starObj.brightness * ratio;
         }
     });
     
-    // 根据总亮度调整地面颜色 - 增强太阳对地面的亮度影响
-    const brightness = Math.min(1, totalBrightness * 0.8); // 增强亮度影响因子
+    // 根据总亮度调整地面颜色 - 实现平滑变暗效果
+    const rawBrightness = Math.min(1, totalBrightness * 0.8); // 原始亮度值
+    
+    // 使用线性插值实现平滑过渡，确保亮度单调递减
+    const smoothBrightness = rawBrightness; // 直接使用线性亮度，避免幂函数造成的非线性变化
+    
     const baseColor = new THREE.Color(0x202020); // 更深的深灰色
     const brightColor = new THREE.Color(0xC0C0C0); // 更亮的浅灰色
     
-    const finalColor = baseColor.lerp(brightColor, brightness);
+    const finalColor = baseColor.lerp(brightColor, smoothBrightness);
     ground.material.color = finalColor;
     
     // 更新格子线框颜色 - 始终比地面颜色亮
@@ -1580,15 +1606,17 @@ function updateGroundBrightness() {
 function updateSkyDomeColor(stars, planetP) {
     if (!skyDome) return;
     
-    // 计算可见太阳的最近距离
+    // 计算可见太阳的最近距离，考虑晨昏状态的可见比例
     let minStarDistance = Infinity;
     let hasVisibleStars = false;
+    let maxVisibilityRatio = 0; // 最大可见比例，用于调整亮度
     
     starObjects.forEach(starObj => {
-        // 只考虑"可见"的恒星的光照
-        if (starObj.visibilityLabel === '(可见)') {
+        // 考虑可见恒星和晨昏状态下的恒星
+        if (starObj.visibilityLabel === '(可见)' || starObj.visibilityLabel === '(晨昏)') {
             hasVisibleStars = true;
             minStarDistance = Math.min(minStarDistance, starObj.distance);
+            maxVisibilityRatio = Math.max(maxVisibilityRatio, starObj.visibilityRatio || 1.0);
         }
     });
     
@@ -1597,17 +1625,17 @@ function updateSkyDomeColor(stars, planetP) {
         minStarDistance = 1000; // 设置一个很大的距离值
     }
     
-    // 根据太阳距离计算天空亮度和颜色 - 增强太阳对天空的亮度影响
+    // 根据太阳距离计算天空亮度和颜色 - 使用简单的线性插值确保平滑过渡
     const maxDistance = 400; // 增加最大距离，使太阳在更远距离时仍能影响天空
     const brightnessFactor = Math.max(0, 1 - minStarDistance / maxDistance);
-    const enhancedBrightnessFactor = Math.pow(brightnessFactor, 0.6); // 使用幂函数增强近距离亮度效果
+    const enhancedBrightnessFactor = brightnessFactor * maxVisibilityRatio; // 使用线性插值确保单调变化
     
-    // 根据太阳距离调整天空颜色 - 增强颜色变化
-    // 太阳接近时：明亮的浅天蓝色
-    // 太阳远离时：深蓝到黑色
-    const baseR = Math.floor(0 + enhancedBrightnessFactor * 255); // 增强红色分量到最大值
-    const baseG = Math.floor(0 + enhancedBrightnessFactor * 255); // 增强绿色分量到最大值
-    const baseB = Math.floor(30 + enhancedBrightnessFactor * 225); // 增强蓝色分量，基础值提高
+    // 根据太阳距离调整天空颜色 - 从深蓝黑色到浅天蓝色过渡
+    // 太阳接近时：浅天蓝色 (135, 206, 235)
+    // 太阳远离时：深蓝黑色 (0, 0, 20)
+    const baseR = Math.floor(0 + enhancedBrightnessFactor * 135); // 红色分量从0到135
+    const baseG = Math.floor(0 + enhancedBrightnessFactor * 206); // 绿色分量从0到206
+    const baseB = Math.floor(20 + enhancedBrightnessFactor * 215); // 蓝色分量从20到235
     
     // 创建Three.js颜色对象
     const skyColor = new THREE.Color(`rgb(${baseR}, ${baseG}, ${baseB})`);
