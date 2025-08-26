@@ -95,6 +95,64 @@ const quotes = [
 let currentQuoteIndex = 0;
 const quoteElement = document.getElementById('quote');
 
+// 光谱类型定义及其质量范围
+const spectralTypes = [
+    { name: 'M', minMass: 1000, maxMass: 3000, color: '#FF4500' },    // M型：红色
+    { name: 'K', minMass: 3000, maxMass: 8000, color: '#FFA500' },    // K型：橙色
+    { name: 'G', minMass: 8000, maxMass: 12000, color: '#FFD700' },   // G型：黄色
+    { name: 'F', minMass: 12000, maxMass: 16000, color: '#FFFACD' },  // F型：黄白色
+    { name: 'A', minMass: 16000, maxMass: 25000, color: '#FFFFFF' },  // A型：白色
+    { name: 'B', minMass: 25000, maxMass: 40000, color: '#87CEEB' },  // B型：蓝白色
+    { name: 'O', minMass: 40000, maxMass: 50000, color: '#4169E1' }   // O型：蓝色
+];
+
+// 根据恒星质量获取光谱颜色（均匀渐变）
+function getSpectralColor(mass) {
+    // 恒星质量范围：1000-50000，涵盖所有光谱类型
+    // 质量越大，颜色越偏蓝；质量越小，颜色越偏红
+    
+    // 将质量映射到0-1范围
+    const minMass = 1000;
+    const maxMass = 50000;
+    const normalizedMass = Math.max(0, Math.min(1, (mass - minMass) / (maxMass - minMass)));
+    
+    // 定义光谱颜色渐变点（从红色到蓝色）
+    // M型（红色）-> K型（橙色）-> G型（黄色）-> F型（黄白色）-> A型（白色）-> B型（蓝白色）-> O型（蓝色）
+    const spectralColors = [
+        { mass: 0.0, r: 255, g: 69, b: 0 },    // M型：红色 #FF4500
+        { mass: 0.17, r: 255, g: 165, b: 0 },  // K型：橙色 #FFA500
+        { mass: 0.33, r: 255, g: 215, b: 0 },  // G型：黄色 #FFD700
+        { mass: 0.5, r: 255, g: 250, b: 205 }, // F型：黄白色 #FFFACD
+        { mass: 0.67, r: 255, g: 255, b: 255 }, // A型：白色 #FFFFFF
+        { mass: 0.83, r: 135, g: 206, b: 235 }, // B型：蓝白色 #87CEEB
+        { mass: 1.0, r: 65, g: 105, b: 225 }    // O型：深蓝色 #4169E1
+    ];
+    
+    // 找到当前质量对应的两个颜色点
+    let lowerColor = spectralColors[0];
+    let upperColor = spectralColors[spectralColors.length - 1];
+    
+    for (let i = 0; i < spectralColors.length - 1; i++) {
+        if (normalizedMass >= spectralColors[i].mass && normalizedMass <= spectralColors[i + 1].mass) {
+            lowerColor = spectralColors[i];
+            upperColor = spectralColors[i + 1];
+            break;
+        }
+    }
+    
+    // 计算插值比例
+    const range = upperColor.mass - lowerColor.mass;
+    const t = range > 0 ? (normalizedMass - lowerColor.mass) / range : 0;
+    
+    // 线性插值计算RGB值
+    const r = Math.round(lowerColor.r + (upperColor.r - lowerColor.r) * t);
+    const g = Math.round(lowerColor.g + (upperColor.g - lowerColor.g) * t);
+    const b = Math.round(lowerColor.b + (upperColor.b - lowerColor.b) * t);
+    
+    // 返回十六进制颜色
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
 // 天体类
 class CelestialBody {
     constructor(name, mass, x, y, z, vx, vy, vz, color) {
@@ -118,9 +176,9 @@ let initialBodies = [];
 
 function initBodies() {
     bodies = [
-        new CelestialBody('α', 10000, 0, 0, 0, 0, 0, 0, '#ff5555'),
-        new CelestialBody('β', 10000, 200, 0, 0, 0, 10, 0, '#5555ff'),
-        new CelestialBody('γ', 10000, -200, 0, 0, 0, -10, 0, '#55ff55'),
+        new CelestialBody('α', 40000, 0, 0, 0, 0, 0, 0, getSpectralColor(40000)),    // O型恒星（蓝色，大质量）
+        new CelestialBody('β', 15000, 200, 0, 0, 0, 10, 0, getSpectralColor(15000)),  // B型恒星（蓝白色，中等质量）
+        new CelestialBody('γ', 3000, -200, 0, 0, 0, -10, 0, getSpectralColor(3000)),   // K型恒星（橙色，较小质量）
         new CelestialBody('p', 10, 0, 150, 0, -15, 0, 0, '#ffff55')
     ];
     
@@ -202,6 +260,11 @@ function updateBodies() {
 
         // 更新半径
         bodies[i].radius = Math.cbrt(bodies[i].mass) * 0.5;
+        
+        // 根据质量更新恒星颜色（仅对恒星）
+        if (i < 3) { // 恒星
+            bodies[i].color = getSpectralColor(bodies[i].mass);
+        }
     }
 }
 
@@ -303,18 +366,16 @@ function randomizeBodies() {
         delete trails[key];
     }
 
-    // 创建新的天体
-    const alpha = new CelestialBody('α', 10000, 0, 0, 0, 0, 0, 0, '#ff5555');
-    const beta = new CelestialBody('β', 10000, 0, 0, 0, 0, 0, 0, '#5555ff');
-    const gamma = new CelestialBody('γ', 10000, 0, 0, 0, 0, 0, 0, '#55ff55');
+    // 创建新的天体（使用不同质量展示不同光谱类型）
+    const alpha = new CelestialBody('α', 40000, 0, 0, 0, 0, 0, 0, getSpectralColor(40000));    // O型恒星（蓝色，大质量）
+    const beta = new CelestialBody('β', 15000, 0, 0, 0, 0, 0, 0, getSpectralColor(15000));      // B型恒星（蓝白色，中等质量）
+    const gamma = new CelestialBody('γ', 3000, 0, 0, 0, 0, 0, 0, getSpectralColor(3000));       // K型恒星（橙色，较小质量）
     const p = new CelestialBody('p', 10, 0, 0, 0, 0, 0, 0, '#00ffff'); // 初始为青色
 
     bodies.push(alpha, beta, gamma, p);
 
     // 随机生成完全随机的三维三体系统
-    // 随机质量范围
-    const starMassMin = 5000;
-    const starMassMax = 20000;
+    // 行星质量范围
     const planetMassMin = 5;
     const planetMassMax = 55;
 
@@ -325,7 +386,10 @@ function randomizeBodies() {
     for (let i = 0; i < bodies.length; i++) {
         // 设置质量
         if (i < 3) { // 恒星
-            bodies[i].mass = Math.random() * (starMassMax - starMassMin) + starMassMin;
+            // 先随机选择光谱类型
+            const randomSpectralType = spectralTypes[Math.floor(Math.random() * spectralTypes.length)];
+            // 在该光谱类型的质量范围内随机质量
+            bodies[i].mass = Math.random() * (randomSpectralType.maxMass - randomSpectralType.minMass) + randomSpectralType.minMass;
         } else { // 行星
             bodies[i].mass = Math.random() * (planetMassMax - planetMassMin) + planetMassMin;
         }
@@ -350,6 +414,11 @@ function randomizeBodies() {
 
         // 更新半径
         bodies[i].radius = Math.cbrt(bodies[i].mass) * 0.5;
+        
+        // 根据质量更新恒星颜色（仅对恒星）
+        if (i < 3) { // 恒星
+            bodies[i].color = getSpectralColor(bodies[i].mass);
+        }
 
         // 初始化轨迹数组
         trails[bodies[i].name] = [];
@@ -517,12 +586,15 @@ function checkCollisions() {
                 }
                 newName = testName;
 
+                // 根据新的总质量重新计算恒星颜色
+                const newColor = getSpectralColor(totalMass);
+                
                 const newBody = new CelestialBody(
                     newName,
                     totalMass,
                     newX, newY, newZ,
                     newVx, newVy, newVz,
-                    body1.color // 保持原有颜色
+                    newColor // 使用基于新质量的光谱颜色
                 );
 
                 // 移除碰撞的天体并添加新天体
@@ -1467,9 +1539,10 @@ function updateStarsInFirstPersonView(planetP) {
                 color: 0xffffff
             });
         } else {
-            // 近距离恒星：黄色，取消透明度设置
+            // 近距离恒星：使用光谱颜色，取消透明度设置
+            const spectralColor = getSpectralColor(star.mass);
             starMaterial = new THREE.MeshBasicMaterial({
-                color: 0xffff66
+                color: spectralColor
             });
         }
         
@@ -1519,9 +1592,37 @@ function updateStarsInFirstPersonView(planetP) {
         } else {
             // 晨昏状态：太阳边界到地平线的距离在±5倍太阳半径范围内
             visibilityLabel = '(晨昏)';
-            // 使用简单的线性插值计算可见比例，确保平滑过渡
-            const normalizedDistance = (sunEdgeDistance + sunRadius * 5) / (sunRadius * 10); // 归一化到0-1范围
-            visibilityRatio = Math.max(0, Math.min(1, normalizedDistance));
+            // 计算可见部分的比例
+            const h = sunCenterToSurface; // 太阳中心到地平线的距离
+            const r = sunRadius; // 太阳半径
+                
+                if (h >= 0) {
+                    // 太阳中心在地平线以上，计算被遮挡的部分
+                    const segmentHeight = r - h; // 被遮挡的高度
+                    if (segmentHeight <= 0) {
+                        visibilityRatio = 1.0;
+                    } else {
+                        // 计算被遮挡的弓形面积比例
+                        const theta = 2 * Math.acos((r - segmentHeight) / r);
+                        const segmentArea = (r * r * (theta - Math.sin(theta))) / 2;
+                        const circleArea = Math.PI * r * r;
+                        visibilityRatio = (circleArea - segmentArea) / circleArea;
+                    }
+                } else {
+                    // 太阳中心在地平线以下，计算可见的部分
+                    const segmentHeight = r + h; // 可见的高度
+                    if (segmentHeight <= 0) {
+                        visibilityRatio = 0.0;
+                    } else {
+                        // 计算可见的弓形面积比例
+                        const theta = 2 * Math.acos((r - segmentHeight) / r);
+                        const segmentArea = (r * r * (theta - Math.sin(theta))) / 2;
+                        const circleArea = Math.PI * r * r;
+                        visibilityRatio = segmentArea / circleArea;
+                    }
+                }
+            // 确保可见比例在0-1之间
+            visibilityRatio = Math.max(0, Math.min(1, visibilityRatio));
         }
         
         // 保存到新的恒星对象数组
@@ -2131,16 +2232,18 @@ function drawStarsOnSkyDome(planetP) {
             ctx.arc(skyX, skyY, flyingStarSize, 0, Math.PI * 2);
             ctx.fill();
         } else {
-            // 近距离恒星：黄色，有光晕
-            const starR = 255;
-            const starG = 255;
-            const starB = 100;
+            // 近距离恒星：使用光谱颜色，有光晕
+            const spectralColor = getSpectralColor(star.mass);
+            // 将十六进制颜色转换为RGB
+            const starR = parseInt(spectralColor.substr(1, 2), 16);
+            const starG = parseInt(spectralColor.substr(3, 2), 16);
+            const starB = parseInt(spectralColor.substr(5, 2), 16);
             
             // 绘制恒星光晕
             const gradient = ctx.createRadialGradient(skyX, skyY, 0, skyX, skyY, size * 2);
             gradient.addColorStop(0, `rgba(${starR}, ${starG}, ${starB}, ${alpha})`);
             gradient.addColorStop(0.3, `rgba(${starR}, ${starG}, ${starB}, ${alpha * 0.6})`);
-            gradient.addColorStop(0.7, `rgba(${starR}, ${starG-55}, ${starB}, ${alpha * 0.3})`);
+            gradient.addColorStop(0.7, `rgba(${starR}, ${Math.max(0, starG-55)}, ${starB}, ${alpha * 0.3})`);
             gradient.addColorStop(1, `rgba(${starR}, ${starG}, ${starB}, 0)`);
             
             ctx.fillStyle = gradient;
