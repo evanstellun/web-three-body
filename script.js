@@ -1336,31 +1336,23 @@ function updateStarsInFirstPersonView(planetP) {
         planetRotation = planetP.rotationAngle;
     }
     
-    // 清除旧的恒星对象
-    starObjects.forEach(star => {
-        firstPersonScene.remove(star.mesh);
-        // 释放几何体和材质内存
-        if (star.mesh.geometry) star.mesh.geometry.dispose();
-        if (star.mesh.material) {
-            if (Array.isArray(star.mesh.material)) {
-                star.mesh.material.forEach(material => material.dispose());
-            } else {
-                star.mesh.material.dispose();
-            }
-        }
-        
-        // 光晕对象已移除，无需释放
-    });
-    starObjects = [];
-    
-    // 获取三颗恒星
+    // 确保获取所有三颗恒星
     const stars = bodies.filter(body => body.name !== 'p');
+    
+    // 临时存储新的恒星对象
+    const newStarObjects = [];
+    
+    // 确保我们有三颗太阳，这是三体问题的核心
+    if (stars.length !== 3) {
+        console.warn('预期有三颗太阳，但实际获取到:', stars.length);
+    }
     
     // 观察者位于行星P的位置
     const observerX = planetP.x;
     const observerY = planetP.y;
     const observerZ = planetP.z;
     
+    // 为每颗恒星创建或更新对象
     stars.forEach(star => {
         // 计算恒星相对于观察者的位置
         const dx = star.x - observerX;
@@ -1391,14 +1383,9 @@ function updateStarsInFirstPersonView(planetP) {
         while (longitude > Math.PI) longitude -= 2 * Math.PI;
         while (longitude < -Math.PI) longitude += 2 * Math.PI;
         
-        // 4. 应用垂直视角限制（观察者只能在面以上的方向移动）
-        // 如果纬度小于0（在平面以下），则不显示
-        if (latitude < 0) {
-            return; // 跳过这颗恒星的绘制
-        }
-        
         // 5. 将新的坐标系投影到天穹上
         // 纬度相对于地面固定，不受观察者视角影响
+        // 注意：现在所有恒星都会被投影，即使在地面以下或被完全遮挡
         
         // 将经度和纬度转换为3D空间中的位置
         const skyRadius = 490; // 稍微小于天穹半径
@@ -1426,21 +1413,12 @@ function updateStarsInFirstPersonView(planetP) {
         // 计算恒星在高度方向上的一半
         const halfStarHeight = (starSizeForVisibility / skyRadius) * 2; // 调整因子使效果更自然
         
-        // 如果恒星完全低于地平线，则不显示
-        // 但允许恒星部分显示（当starHeight > -halfStarHeight时）
-        if (starHeight < -halfStarHeight) {
-            return; // 跳过这颗恒星的绘制
-        }
-        
+        // 注意：现在所有恒星都会被投影，即使在地面以下或被完全遮挡
         // 观察者视角可见性判断：考虑观察者的垂直视角和恒星大小
         // 计算恒星相对于观察者视角的可见纬度
         const visibleLatitude = latitude - verticalAngle;
         
-        // 如果恒星完全在观察者视角下方，则不显示
-        // 但允许恒星部分显示（当visibleLatitude > -halfStarHeight时）
-        if (visibleLatitude < -halfStarHeight) {
-            return; // 跳过这颗恒星的绘制
-        }
+        // 注意：现在所有恒星都会被投影，即使在观察者视角下方
         
         // 计算太阳在天穹上的基础位置向量
         let x = skyRadius * Math.cos(latitude) * Math.sin(longitude);
@@ -1503,15 +1481,58 @@ function updateStarsInFirstPersonView(planetP) {
         
         firstPersonScene.add(starMesh);
         
-        // 保存恒星对象引用
-        starObjects.push({
+        let typeLabel = '';
+        // 判断是否为飞星状态
+        if (isFlyingStar) {
+            typeLabel = '(飞星)';
+        } else {
+            typeLabel = '(太阳)';
+        }
+        
+        // 计算地面遮挡情况，判断太阳是否完全被地面遮挡
+        const sunRadius = 10; // 太阳半径
+        const planetRadius = 20; // 行星P半径
+        
+        // 计算太阳中心到行星表面的垂直距离
+        const sunCenterToSurface = y - planetRadius;
+        
+        // 计算太阳边缘到行星表面的距离
+        // 如果太阳中心在行星表面以下，且距离大于太阳半径，则完全被遮挡
+        const sunEdgeToSurface = sunCenterToSurface + sunRadius;
+        
+        // 判断太阳是否完全被地面遮挡
+        // 只有当太阳边缘完全在行星表面以下时才判断为不可见
+        const isCompletelyBlocked = sunEdgeToSurface < 0;
+        const visibilityLabel = isCompletelyBlocked ? '(不可见)' : '(可见)';
+        
+        // 保存到新的恒星对象数组
+        newStarObjects.push({
             mesh: starMesh,
             glowMeshes: glowMeshes,
             star: star,
             distance: distance,
-            brightness: brightness
+            brightness: brightness,
+            typeLabel: typeLabel,
+            visibilityLabel: visibilityLabel
         });
     });
+    
+    // 清除未被复用的旧恒星对象
+    starObjects.forEach(star => {
+        firstPersonScene.remove(star.mesh);
+        // 释放几何体和材质内存
+        if (star.mesh.geometry) star.mesh.geometry.dispose();
+        if (star.mesh.material) {
+            if (Array.isArray(star.mesh.material)) {
+                star.mesh.material.forEach(material => material.dispose());
+            } else {
+                star.mesh.material.dispose();
+            }
+        }
+    });
+    
+    // 替换为新的恒星对象数组
+    starObjects = newStarObjects;
     
     // 更新天空颜色根据太阳距离
     updateSkyDomeColor(stars, planetP);
@@ -2110,15 +2131,38 @@ function drawFirstPersonControls() {
     if (isFirstPersonView) {
         // 第一视角模式下显示行星温度和自转信息
         const temperature = calculatePlanetPTemperature();
+        
+        // 确定信息框的高度 - 增加空间显示三颗太阳的信息
+        const boxHeight = 180;
+        
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(10, 10, 300, 80);
+        ctx.fillRect(10, 10, 300, boxHeight);
         
         ctx.fillStyle = '#00ccff';
         ctx.font = '14px Arial';
         ctx.textAlign = 'left';
+        
+        // 基础信息
         ctx.fillText('第一视角模式', 20, 30);
         ctx.fillText(`行星P表面温度: ${temperature} °C`, 20, 50);
-        ctx.fillText('行星自转: 10刻/圈', 20, 70);
+        
+        // 显示每颗太阳的信息
+        let yPosition = 70;
+        
+        if (starObjects.length > 0) {
+            starObjects.forEach((starObj, index) => {
+                if (starObj.star) {
+                    const distance = starObj.distance.toFixed(2);
+                ctx.fillText(`${starObj.star.name}: 距离 ${distance}`, 20, yPosition);
+                ctx.fillText(`${starObj.typeLabel}`, 150, yPosition);
+                ctx.fillText(`${starObj.visibilityLabel}`, 220, yPosition);
+                yPosition += 25;
+                }
+            });
+        } else {
+            // 如果没有太阳信息，显示提示
+        ctx.fillText('三颗太阳位置信息加载中...', 20, 70);
+    }
     } else {
         // 普通模式下显示操作说明
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
