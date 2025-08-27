@@ -78,7 +78,7 @@ Perhaps only when we face the collapse and reconstruction of civilizations again
 
 - Liu Cixin, author of the *Three-Body Problem* series and Hugo Award winner
 - Netlify for providing free GitHub repository synchronization
-- A total of 1,387 three-body civilizations that were destroyed during program testing and 95 three-body civilizations that successfully flew to new homes (doge)
+- A total of 2,752 three-body civilizations that were destroyed during program testing and 147 three-body civilizations that successfully flew to new homes (doge)
 
 ## License
 
@@ -87,5 +87,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 "Weakness and ignorance are not barriers to survival, but arrogance is." — *Three-Body Problem*
 
 May we all find our own light of civilization in this chaotic universe.
+
 
 
