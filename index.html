@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="format-detection" content="telephone=no">
@@ -25,10 +26,22 @@
             <canvas id="simulationCanvas"></canvas>
         </div>
 
+        <!-- 设置按钮 - 完全独立于操作说明面板 -->
+        <button id="toggle-controls" 
+            style="left: 10px; top: 10px; position: fixed; z-index: 1000; background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(0, 204, 255, 0.3); border-radius: 50%; color: #00ccff; font-size: 18px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(0, 204, 255, 0.2); backdrop-filter: blur(10px);"
+            title="控制面板">⚙️</button>
+
+        <!-- 操作说明按钮 - 与设置按钮对称 -->
+        <button id="toggle-info" 
+            style="right: 10px; top: 10px; position: fixed; z-index: 1000; background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(0, 204, 255, 0.3); border-radius: 50%; color: #00ccff; font-size: 18px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(0, 204, 255, 0.2); backdrop-filter: blur(10px);"
+            title="操作说明">📋</button>
+
         <!-- 操作说明与基础信息面板 -->
-        <div id="info">
-            <h3>操作说明 <button id="toggle-info">−</button></h3>
-            <div id="info-content">
+        <div id="info" class="info-panel" style="display:block !important;">
+            <div id="info-header">
+            </div>
+            <div id="info-content" class="info-content">
+                <h4>操作说明</h4>
                 <p>单指拖拽: 旋转视角</p>
                 <p>双指缩放: 缩放</p>
                 <p>双击天体: 聚焦到该天体</p>
@@ -58,7 +71,6 @@
         <div id="controls-container">
             <div id="controls-header">
                 <h3>控制面板</h3>
-                <button id="toggle-controls">收起</button>
             </div>
 
             <div id="controls-content">
@@ -66,9 +78,9 @@
                     <button id="randomizeBtn">重开一局</button>
                     <button id="updateBtn">重新模拟</button>
                     <button id="first-person-btn">第一视角</button>
-                    <button id="show-history-btn">显示三体文明历程</button>
-                    <button id="exportBtn">导出参数</button>
-                    <button id="importBtn">导入参数</button>
+                    <button id="show-history-btn">文明历程</button>
+                    <button id="exportBtn">导出</button>
+                    <button id="importBtn">导入</button>
                     <input type="file" id="fileInput" accept=".json">
                 </div>
             </div>
@@ -115,7 +127,7 @@
         </div>
 
         <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="script.js"></script>
+        <script src="script.js"></script>
 </body>
 
 </html>

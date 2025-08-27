@@ -25,18 +25,24 @@ function optimizeForMobile() {
         controlsContainer.style.maxHeight = '45vh';
         
         // 添加触摸提示
-        if (!localStorage.getItem('mobileTipsShown')) {
+        if (!localStorage.getItem('mobileTipsShown') && !localStorage.getItem('mobileTipsDisabled')) {
             setTimeout(() => {
                 showMobileTips();
                 localStorage.setItem('mobileTipsShown', 'true');
             }, 2000);
         }
+        
+        // 横屏自动收起UI
+        handleOrientationChange();
+        window.addEventListener('orientationchange', handleOrientationChange);
+        window.addEventListener('resize', handleOrientationChange);
     }
 }
 
 // 显示移动端操作提示
 function showMobileTips() {
     const tipDiv = document.createElement('div');
+    tipDiv.id = 'mobile-tips';
     tipDiv.innerHTML = `
         <div style="
             position: fixed;
@@ -45,39 +51,196 @@ function showMobileTips() {
             transform: translate(-50%, -50%);
             background: rgba(0, 0, 0, 0.9);
             color: #00ccff;
-            padding: 20px;
+            padding: 15px;
             border-radius: 10px;
             z-index: 1000;
             text-align: center;
-            max-width: 280px;
+            max-width: 260px;
             border: 1px solid #00ccff;
             box-shadow: 0 0 20px rgba(0, 204, 255, 0.3);
         ">
-            <h3>🚀 移动端操作指南</h3>
-            <p>🖐️ 单指拖拽：旋转视角</p>
-            <p>🤌 双指缩放：放大缩小</p>
-            <p>👆 单击天体：查看信息</p>
-            <p>👆👆 双击天体：聚焦跟随</p>
-            <button onclick="this.parentElement.parentElement.remove()" style="
-                margin-top: 15px;
-                padding: 8px 16px;
+            <div style="font-size: 16px; margin-bottom: 10px; font-weight: bold;">移动端操作指南</div>
+            <div style="font-size: 12px; line-height: 1.4;">
+                <div>单指拖拽：旋转视角</div>
+                <div>双指缩放：放大缩小</div>
+                <div>单击天体：查看信息</div>
+                <div>双击天体：聚焦跟随</div>
+            </div>
+            <button onclick="closeMobileTips()" style="
+                margin-top: 10px;
+                padding: 6px 12px;
                 background: #00ccff;
                 color: black;
                 border: none;
-                border-radius: 5px;
+                border-radius: 4px;
                 cursor: pointer;
+                font-size: 12px;
             ">知道了</button>
+            <button onclick="closeMobileTipsPermanently()" style="
+                margin-top: 5px;
+                padding: 4px 8px;
+                background: transparent;
+                color: #666;
+                border: 1px solid #666;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 11px;
+            ">不再显示</button>
         </div>
     `;
     document.body.appendChild(tipDiv);
     
-    // 3秒后自动消失
+    // 2秒后自动消失
     setTimeout(() => {
         if (tipDiv.parentElement) {
             tipDiv.remove();
         }
-    }, 5000);
+    }, 2000);
 }
+
+// 关闭操作提示
+function closeMobileTips() {
+    const tipDiv = document.getElementById('mobile-tips');
+    if (tipDiv) tipDiv.remove();
+}
+
+// 永久关闭操作提示
+function closeMobileTipsPermanently() {
+    localStorage.setItem('mobileTipsDisabled', 'true');
+    closeMobileTips();
+}
+
+// 处理横屏变化
+function handleOrientationChange() {
+    if (!isMobile) return;
+    
+    const isLandscape = window.innerWidth > window.innerHeight;
+    const controlsContainer = document.getElementById('controls-container');
+    const infoPanel = document.getElementById('info-panel');
+    const firstPersonBtn = document.getElementById('first-person-btn');
+    
+    if (isLandscape) {
+        // 横屏时自动收起控制面板，但允许用户通过按钮展开
+        if (controlsContainer) {
+            // 只在非用户展开状态时收起
+            if (!controlsContainer.classList.contains('expanded-by-user')) {
+                controlsContainer.classList.add('collapsed');
+                controlsContainer.style.transform = 'translateY(calc(100% - 35px))';
+            }
+        }
+        
+        if (infoPanel) {
+            // 保持操作指南面板可见
+            const infoContent = infoPanel.querySelector('.info-content');
+            if (infoContent) infoContent.style.display = 'none'; // 只收起内容，保持按钮可见
+        }
+        
+        // 第一视角按钮始终显示
+        if (firstPersonBtn) firstPersonBtn.style.display = 'block';
+        
+        // 调整第一视角渲染器尺寸
+        setTimeout(() => {
+            adjustFirstPersonRendererForLandscape();
+        }, 100);
+        
+        // 添加显示提示
+        showLandscapeHint();
+    } else {
+        // 竖屏时恢复显示
+        if (controlsContainer) {
+            // 只在非用户展开状态时恢复显示
+            if (!controlsContainer.classList.contains('expanded-by-user')) {
+                controlsContainer.classList.remove('collapsed');
+                controlsContainer.style.transform = '';
+            }
+        }
+        
+        if (infoPanel) {
+            const infoContent = infoPanel.querySelector('.info-content');
+            if (infoContent) infoContent.style.display = 'block';
+        }
+        
+        if (firstPersonBtn) firstPersonBtn.style.display = 'block';
+        
+        // 调整第一视角渲染器尺寸
+        setTimeout(() => {
+            adjustFirstPersonRendererForLandscape();
+        }, 100);
+    }
+}
+
+// 显示横屏提示
+function showLandscapeHint() {
+    // 移除已存在的提示
+    const existingHint = document.getElementById('landscape-hint');
+    if (existingHint) return;
+    
+    const hintDiv = document.createElement('div');
+    hintDiv.id = 'landscape-hint';
+    hintDiv.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ccff;
+            padding: 10px 15px;
+            border-radius: 20px;
+            z-index: 1000;
+            font-size: 12px;
+            border: 1px solid #00ccff;
+            pointer-events: none;
+        ">
+            横屏模式已隐藏所有控制面板，点击屏幕任意位置可临时显示
+        </div>
+    `;
+    document.body.appendChild(hintDiv);
+    
+    // 3秒后自动消失
+    setTimeout(() => {
+        if (hintDiv.parentElement) {
+            hintDiv.remove();
+        }
+    }, 3000);
+}
+
+// 临时显示控制面板（点击屏幕）
+document.addEventListener('click', function(e) {
+    if (!isMobile) return;
+    
+    const isLandscape = window.innerWidth > window.innerHeight;
+    if (!isLandscape) return;
+    
+    // 如果用户手动展开了控制面板，则不再自动收起
+    const controlsContainer = document.getElementById('controls-container');
+    const infoPanel = document.getElementById('info-panel');
+    
+    if (controlsContainer && infoPanel) {
+        // 如果用户手动展开了控制面板，则不进行自动操作
+        if (controlsContainer.classList.contains('expanded-by-user')) {
+            return;
+        }
+        
+        // 临时展开控制面板
+        controlsContainer.classList.remove('collapsed');
+        controlsContainer.style.transform = '';
+        
+        const infoContent = infoPanel.querySelector('.info-content');
+        if (infoContent) infoContent.style.display = 'block';
+        
+        // 3秒后再次收起（仅当用户没有手动展开时）
+        setTimeout(() => {
+            if (window.innerWidth > window.innerHeight && !controlsContainer.classList.contains('expanded-by-user')) {
+                controlsContainer.classList.add('collapsed');
+                controlsContainer.style.transform = 'translateY(calc(100% - 35px))';
+                
+                const infoContent = infoPanel.querySelector('.info-content');
+                if (infoContent) infoContent.style.display = 'none';
+            }
+        }, 3000);
+    }
+});
 
 const canvas = document.getElementById('simulationCanvas');
 const ctx = canvas.getContext('2d');
@@ -177,15 +340,15 @@ const quotes = [
     "我们都是阴沟里的虫子，但总还是得有人仰望星空。",
     "给岁月以文明，给时光以生命。",
     "西方人并不比东方人聪明，但是他们却找对了路。",
-    "越透明的东西越神秘，宇宙本身就是透明的，只要目力能及，你想看多远就看多远，但越看越神秘。",
+    "越透明的东西越神秘，宇宙本身就是透明的，",
     "上帝是个无耻的老赌徒，他抛弃了我们！",
     "藏好自己，做好清理。",
-    "一知道在哪儿，世界就变得像一张地图那么小了；不知道在哪儿，感觉世界才广阔。",
+    "一知道在哪儿，世界就变得像一张地图那么小了。",
     "给岁月以文明，而不是给文明以岁月。",
     "虫子从来没有被战胜过。",
     "碑是那么小，与其说是为了纪念，更像是为了忘却。",
     "前进！前进！不择手段地前进！",
-    "一切的一切都导向这样一个结果：物理学从来就没有存在过，将来也不会存在。我知道自己这样做是不负责任的，但别无选择。",
+    "物理学从来就没有存在过，将来也不会存在。",
     "把字刻在石头上。",
     "我不知道你在这儿，知道的话我会常来看你的。",
     "你的无畏来源于无知。",
@@ -195,11 +358,12 @@ const quotes = [
     "弱小和无知不是生存的障碍，傲慢才是。",
     "毁灭你，与你有何相干？",
     "我有一个梦，也许有一天，灿烂的阳光能照进黑暗森林。",
-    "没有什么能永远存在，即使是宇宙也有灭亡的那一天，凭什么人类就觉得自己该永远存在下去。",
+    "凭什么人类就觉得自己该永远存在下去。",
     "是对规律的渴望，还是对混沌的屈服。",
     "这是人类的落日。",
     "在黑暗中沉淀出了重元素，所以光明不是文明的母亲，黑暗才是。",
-    "“把海弄干的鱼在海干前上了陆地，从一片黑暗森林奔向另一片黑暗森林。鱼上了岸，也就不再是鱼。”",
+    "把海弄干的鱼在海干前上了陆地，从一片黑暗森林奔向另一片黑暗森林。",
+    "鱼上了岸，也就不再是鱼。",
     "仅靠生存本身是不能保证生存的，发展是生存的最好保障。",
     "妈妈，我将变成一只萤火虫。",
     "来了，爱了，给了她一颗星星，走了。",
@@ -216,9 +380,9 @@ const quotes = [
     "真理总沾着灰。",
     "在每一个历史断面上，你都能找到一大堆丢失的机遇。",
     "不按规则打球，把球放进篮筐也就失去了意义。",
-    "这里本就没有路，你若想走，那它便是一条路，你若不想，那它便只会是一片荒野。",
     "当你开始和你的敌人共情的时候，你的是非观就已经被颠覆了。",
-    "在意义之塔上，生存高于一切，面对生存，任何低熵体都只能两害相权取其轻。",
+    "在意义之塔上，生存高于一切。",
+    "面对生存，任何低熵体都只能两害相权取其轻。",
     "仅靠生存本身是不能保证生存的，发展是生存的最好保障。",
     "一个人的鉴别能力是和他的知识成正比的。",
     "生存从来都不是理所当然的事情，是我们误把它当成了理所当然。",
@@ -229,7 +393,7 @@ const quotes = [
     "我正变成死亡，世界的毁灭者。",
     "这一刻，沧海桑田。",
     "一切都将逝去，只有死神永生。",
-    "现在，我让心脏停止跳动，与此同时，我将成为两个文明有史以来最大的罪犯，对此，我对两个文明表示深深的歉意，但不会忏悔。",
+
 ];
 let currentQuoteIndex = 0;
 const quoteElement = document.getElementById('quote');
@@ -1465,15 +1629,19 @@ function initFirstPersonScene() {
     // 创建场景
     firstPersonScene = new THREE.Scene();
     
-    // 创建相机
-    firstPersonCamera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
+    // 获取当前画布尺寸（考虑横屏模式）
+    const currentWidth = canvas.width;
+    const currentHeight = canvas.height;
+    
+    // 创建相机 - 使用正确的宽高比
+    firstPersonCamera = new THREE.PerspectiveCamera(75, currentWidth / currentHeight, 0.1, 1000);
     
     // 创建渲染器 - 启用抗锯齿
     firstPersonRenderer = new THREE.WebGLRenderer({ 
         alpha: true,
         antialias: true // 启用渲染器级别的抗锯齿
     });
-    firstPersonRenderer.setSize(canvas.width, canvas.height);
+    firstPersonRenderer.setSize(currentWidth, currentHeight);
     firstPersonRenderer.setClearColor(0x000000, 0); // 透明背景
     
     // 创建相机容器用于绕世界Y轴旋转
@@ -1577,6 +1745,30 @@ function createStarField() {
     
     starField = new THREE.Points(starGeometry, starMaterial);
     firstPersonScene.add(starField);
+}
+
+// 横屏模式下调整第一视角渲染器尺寸
+function adjustFirstPersonRendererForLandscape() {
+    if (!firstPersonInitialized || !firstPersonRenderer || !firstPersonCamera) return;
+    
+    // 获取当前画布实际尺寸
+    const currentWidth = canvas.width;
+    const currentHeight = canvas.height;
+    
+    // 检查是否需要调整尺寸
+    const rendererWidth = firstPersonRenderer.domElement.width;
+    const rendererHeight = firstPersonRenderer.domElement.height;
+    
+    if (rendererWidth !== currentWidth || rendererHeight !== currentHeight) {
+        console.log(`调整第一视角渲染器尺寸: ${rendererWidth}x${rendererHeight} -> ${currentWidth}x${currentHeight}`);
+        
+        // 更新渲染器尺寸
+        firstPersonRenderer.setSize(currentWidth, currentHeight);
+        
+        // 更新相机宽高比
+        firstPersonCamera.aspect = currentWidth / currentHeight;
+        firstPersonCamera.updateProjectionMatrix();
+    }
 }
 
 // 更新第一视角中的恒星位置
@@ -1930,6 +2122,15 @@ let skyRotation = 0;
 function renderFirstPersonScene() {
     if (!firstPersonInitialized) return;
     
+    // 确保渲染器尺寸匹配当前canvas尺寸
+    if (firstPersonRenderer && 
+        (firstPersonRenderer.domElement.width !== canvas.width || 
+         firstPersonRenderer.domElement.height !== canvas.height)) {
+        firstPersonRenderer.setSize(canvas.width, canvas.height);
+        firstPersonCamera.aspect = canvas.width / canvas.height;
+        firstPersonCamera.updateProjectionMatrix();
+    }
+    
     // 计算每10刻旋转一圈的角度增量
     // 根据当前速度因子调整旋转速度
     const rotationSpeed = (2 * Math.PI) / 10; // 每10刻旋转一圈的速度
@@ -1973,8 +2174,8 @@ function renderFirstPersonScene() {
     // 渲染场景
     firstPersonRenderer.render(firstPersonScene, firstPersonCamera);
     
-    // 将Three.js渲染结果绘制到2D canvas上
-    ctx.drawImage(firstPersonRenderer.domElement, 0, 0);
+    // 将Three.js渲染结果绘制到2D canvas上，确保填满整个画布
+    ctx.drawImage(firstPersonRenderer.domElement, 0, 0, canvas.width, canvas.height);
 }
 
 // 地面相关变量
@@ -2436,40 +2637,7 @@ function drawStarsOnSkyDome(planetP) {
 // 绘制第一视角控制提示
 function drawFirstPersonControls() {
     if (isFirstPersonView) {
-        // 第一视角模式下显示行星温度和自转信息
-        const temperature = calculatePlanetPTemperature();
-        
-        // 确定信息框的高度 - 增加空间显示三颗太阳的信息
-        const boxHeight = 180;
-        
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(10, 10, 300, boxHeight);
-        
-        ctx.fillStyle = '#00ccff';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'left';
-        
-        // 基础信息
-        ctx.fillText('第一视角模式', 20, 30);
-        ctx.fillText(`行星P表面温度: ${temperature} °C`, 20, 50);
-        
-        // 显示每颗太阳的信息
-        let yPosition = 70;
-        
-        if (starObjects.length > 0) {
-            starObjects.forEach((starObj, index) => {
-                if (starObj.star) {
-                    const distance = starObj.distance.toFixed(2);
-                ctx.fillText(`${starObj.star.name}: 距离 ${distance}`, 20, yPosition);
-                ctx.fillText(`${starObj.typeLabel}`, 150, yPosition);
-                ctx.fillText(`${starObj.visibilityLabel}`, 220, yPosition);
-                yPosition += 25;
-                }
-            });
-        } else {
-            // 如果没有太阳信息，显示提示
-        ctx.fillText('三颗太阳位置信息加载中...', 20, 70);
-    }
+        // 删除了第一视角模式下显示的温度和行星距离窗口
     } else {
         // 普通模式下显示操作说明
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -2688,8 +2856,12 @@ canvas.addEventListener('dblclick', (e) => {
     const body = getBodyAtPosition(x, y);
     if (body) {
         centerBody = body;
+        // 确保操作指南按钮保持显示
+        document.getElementById('info').style.display = 'block';
     } else {
         centerBody = null; // 取消聚焦
+        // 确保操作指南按钮保持显示
+        document.getElementById('info').style.display = 'block';
     }
 });
 
@@ -2725,8 +2897,12 @@ canvas.addEventListener('touchstart', (e) => {
                 const body = getBodyAtPosition(x, y);
                 if (body) {
                     centerBody = body;
+                    // 确保操作指南按钮保持显示
+                    document.getElementById('info').style.display = 'block';
                 } else {
                     centerBody = null; // 取消聚焦
+                    // 确保操作指南按钮保持显示
+                    document.getElementById('info').style.display = 'block';
                 }
                 e.preventDefault();
             }
@@ -2801,8 +2977,7 @@ canvas.addEventListener('touchend', (e) => {
         } else {
             selectedBody = null;
             document.getElementById('body-info').style.display = 'none';
-            // 显示操作说明窗口
-            document.getElementById('info').style.display = 'block';
+            // 操作说明窗口始终显示，不需要特别处理
         }
     }
 });
@@ -2831,6 +3006,11 @@ document.getElementById('speed-value').textContent = speedFactor.toFixed(1) + 'x
 window.addEventListener('resize', () => {
     canvas.width = window.innerWidth;
     canvas.height = document.getElementById('simulation-container').clientHeight;
+    
+    // 确保第一视角渲染器也正确调整尺寸
+    setTimeout(() => {
+        adjustFirstPersonRendererForLandscape();
+    }, 200);
 });
 
 // 横竖屏切换处理
@@ -2838,6 +3018,9 @@ window.addEventListener('orientationchange', () => {
     setTimeout(() => {
         canvas.width = window.innerWidth;
         canvas.height = document.getElementById('simulation-container').clientHeight;
+        
+        // 确保第一视角渲染器也正确调整尺寸
+        adjustFirstPersonRendererForLandscape();
     }, 100);
 });
 
@@ -2901,19 +3084,26 @@ document.getElementById('first-person-btn').addEventListener('click', () => {
 document.getElementById('toggle-controls').addEventListener('click', function() {
     const controlsContainer = document.getElementById('controls-container');
     const toggleBtn = document.getElementById('toggle-controls');
-    const controlsContent = document.getElementById('controls-content');
-if (controlsContent) {
-    controlsContent.style.display = 'block';
-}
-document.getElementById('toggle-controls').textContent = '收起';
+    const isLandscape = window.innerWidth > window.innerHeight;
+    
     if (controlsContainer.classList.contains('collapsed')) {
         controlsContainer.classList.remove('collapsed');
-        toggleBtn.textContent = '收起';
-        controlsContent.style.display = 'grid';
+        controlsContainer.classList.add('expanded-by-user');
+        toggleBtn.textContent = '▼';
+        
+        // 在横屏模式下，清除transform样式以允许展开
+        if (isLandscape) {
+            controlsContainer.style.transform = '';
+        }
     } else {
         controlsContainer.classList.add('collapsed');
-        toggleBtn.textContent = '展开';
-        controlsContent.style.display = 'none';
+        controlsContainer.classList.remove('expanded-by-user');
+        toggleBtn.textContent = '⚙️';
+        
+        // 在横屏模式下，恢复transform样式
+        if (isLandscape) {
+            controlsContainer.style.transform = 'translateY(calc(100% - 35px))';
+        }
     }
 });
 
@@ -2924,23 +3114,18 @@ function showBodyInfo(body) {
     document.getElementById('body-velocity').textContent = `${Math.sqrt(body.vx**2 + body.vy**2 + body.vz**2).toFixed(2)}`;
     
     const bodyInfo = document.getElementById('body-info');
-    const infoPanel = document.getElementById('info');
-    
-    // 隐藏操作说明窗口
-    infoPanel.style.display = 'none';
     // 显示天体信息窗口
     bodyInfo.style.display = 'block';
+    // 保持操作说明窗口显示，不隐藏它
 }
 
 // 添加天体信息窗口关闭按钮事件
 if(document.getElementById('toggle-body-info')) {
     document.getElementById('toggle-body-info').addEventListener('click', function() {
         const bodyInfo = document.getElementById('body-info');
-        const infoPanel = document.getElementById('info');
         
         bodyInfo.style.display = 'none';
-        // 重新显示操作说明窗口
-        infoPanel.style.display = 'block';
+        // 操作说明窗口始终显示，不需要重新显示
         selectedBody = null;
     });
 }
@@ -2949,12 +3134,12 @@ document.getElementById('toggle-info').addEventListener('click', function () {
     const content = document.getElementById('info-content');
     const button = this;
 
-    if (content.style.display === 'none') {
+    if (content.style.display === 'none' || content.style.display === '') {
         content.style.display = 'block';
-        button.textContent = '−';
+        button.innerHTML = '✕';
     } else {
         content.style.display = 'none';
-        button.textContent = '+';
+        button.innerHTML = '📋';
     }
 });
 
@@ -3144,7 +3329,6 @@ const clearHistoryBtn = document.getElementById('clear-history-btn');
 if (clearHistoryBtn) {
     clearHistoryBtn.addEventListener('click', clearCivilizationHistory);
 }
-// 删除重复且可能出错的绑定代码
 
 
 civilizationId = getNextCivilizationId();
@@ -3155,7 +3339,7 @@ rotationY = Math.PI / 4; // 45度
 
 // 默认展开控制面板
 document.getElementById('controls-content').style.display = 'block';
-document.getElementById('toggle-controls').textContent = '收起';
+document.getElementById('toggle-controls').textContent = '▼';
 
 animate();
 showQuote(); // 启动名句轮播

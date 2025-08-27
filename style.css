@@ -82,25 +82,69 @@ body {
 }
 
 /* 信息面板样式 */
-#info, #body-info {
+.info-panel {
     position: absolute;
     top: 70px;
     right: 20px;
+    z-index: 100;
+}
+
+#info-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+
+.info-toggle-btn {
+    background: rgba(0, 0, 0, 0.8);
+    color: #00ccff;
+    border: 1px solid rgba(0, 204, 255, 0.3);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(0, 204, 255, 0.2);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.info-toggle-btn:hover {
+    background: rgba(0, 204, 255, 0.2);
+    transform: scale(1.1);
+}
+
+.info-content {
     background: linear-gradient(135deg, rgba(10, 25, 47, 0.9), rgba(15, 30, 60, 0.85));
     color: #e0f7ff;
     padding: 15px;
     border-radius: 5px;
-    z-index: 100;
-    font-size: 14px;
     max-width: 300px;
     border: 1px solid rgba(0, 204, 255, 0.5);
     box-shadow: 0 0 15px rgba(0, 204, 255, 0.3), inset 0 0px 10px rgba(0, 204, 255, 0.05);
     backdrop-filter: blur(8px);
     transform: perspective(500px) rotateX(2deg);
+    display: none;
+}
+
+.info-content h4 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    color: #00ccff;
+    border-bottom: 1px solid #333333;
+    padding-bottom: 5px;
+}
+
+.info-content p {
+    margin: 8px 0;
+    line-height: 1.4;
 }
 
 #body-info {
-    display: none;
+    display: none !important;
 }
 
 #info h3, #body-info h3 {
@@ -120,7 +164,7 @@ body {
     line-height: 1.4;
 }
 
-#toggle-info, #toggle-controls {
+#toggle-info {
     background: none;
     border: none;
     color: #00ccff;
@@ -133,6 +177,29 @@ body {
     align-items: center;
     justify-content: center;
     white-space: nowrap;
+}
+
+/* 设置按钮专属样式 - 确保独立性 */
+.settings-toggle-btn {
+    position: absolute !important;
+    left: 10px !important;
+    top: 10px !important;
+    z-index: 51 !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    border: 1px solid rgba(0, 204, 255, 0.3) !important;
+    border-radius: 50% !important;
+    color: #00ccff !important;
+    font-size: 18px !important;
+    width: 36px !important;
+    height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 0 15px rgba(0, 204, 255, 0.2) !important;
+    backdrop-filter: blur(10px) !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
 /* 碰撞和温度消息 */
@@ -155,20 +222,21 @@ body {
 }
 
 #collision-message {
-    top: 70px;
+    top: 110px;
     color: #00ccff;
 }
 
 #temperature-message {
-    top: 140px;
+    top: 180px;
     color: #00ccff;
 }
 
 /* 控制面板样式 */
 #controls-container {
     position: absolute;
-    bottom: 0;
-    left: 0;
+    bottom: 0 !important;
+    left: 0 !important;
+    top: auto !important;
     width: 100%;
     background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(10, 18, 35, 0.95));
     border-top: 1px solid rgba(0, 204, 255, 0.5);
@@ -183,7 +251,7 @@ body {
 }
 
 #controls-container.collapsed {
-    transform: translateY(calc(100% - 45px)); /* 只留下标题栏 */
+    transform: translateY(calc(100% - 45px));
 }
 
 #controls-header {
@@ -194,6 +262,32 @@ body {
     padding-bottom: 10px;
     border-bottom: 1px solid #333333;
     cursor: pointer;
+}
+
+.controls-toggle-btn {
+    background: rgba(0, 0, 0, 0.8);
+    color: #00ccff;
+    border: 1px solid rgba(0, 204, 255, 0.3);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(0, 204, 255, 0.2);
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 200;
+}
+
+.controls-toggle-btn:hover {
+    background: rgba(0, 204, 255, 0.2);
+    transform: scale(1.1);
 }
 
 #controls-header h3 {
@@ -533,30 +627,78 @@ label {
         height: 40px;
     }
 
-    #info, #body-info {
+    .info-panel {
         top: 50px;
         right: 10px;
-        left: 10px;
-        max-width: none;
-        width: auto;
-        padding: 12px;
-        font-size: 13px;
-        transform: none;
-        border-radius: 8px;
     }
 
-    #info h3, #body-info h3 {
+    .info-toggle-btn {
+        width: 36px;
+        height: 36px;
         font-size: 16px;
+        background: rgba(0, 0, 0, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+        .controls-toggle-btn {
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 30px;
+            font-size: 12px;
+        }
+
+        #controls-container {
+            bottom: 0;
+            left: 0;
+            top: auto;
+            max-width: 100%;
+            width: 100%;
+            max-height: 45vh;
+            padding: 12px;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .info-content {
+            top: 42px;
+            right: 0;
+            max-width: 260px;
+            width: 260px;
+            padding: 12px;
+            font-size: 13px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+    .info-content h4 {
+        font-size: 14px;
+        margin: 0 0 8px 0;
+    }
+
+    .info-content p {
+        margin: 6px 0;
+        font-size: 12px;
+        line-height: 1.4;
     }
 
     #collision-message, #temperature-message {
         font-size: 13px;
         padding: 8px 12px;
-        top: 50px;
-        left: 10px;
-        right: 10px;
-        max-width: none;
+        top: 90px;
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        max-width: 90%;
         width: auto;
+        text-align: center;
     }
 
     .celestial-body div {
@@ -581,15 +723,16 @@ label {
 
     .main-buttons {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
     }
 
     button, #civilization-history-btn {
         min-width: auto;
-        padding: 10px 8px;
-        font-size: 12px;
+        padding: 6px 4px;
+        font-size: 11px;
         white-space: nowrap;
+        min-height: 36px;
     }
 
     #simulation-container {
@@ -599,7 +742,7 @@ label {
     #controls-container {
         height: auto;
         max-height: 45vh;
-        padding: 12px;
+        padding: 10px;
         border-radius: 12px 12px 0 0;
     }
 
@@ -612,11 +755,24 @@ label {
         font-size: 16px;
     }
 
-    #toggle-controls {
-        width: 70px;
-        padding: 6px 8px;
-        font-size: 12px;
-    }
+    .controls-toggle-btn {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 30px;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
 
     #speed-container {
         flex-direction: column;
@@ -661,27 +817,91 @@ label {
     }
 
     .first-person-controls {
-        bottom: 15px;
+        top: 65px;
         left: 15px;
         right: 15px;
+        bottom: auto;
         transform: none;
         padding: 12px;
         font-size: 12px;
     }
+    }
 
     /* 横屏模式优化 */
     @media (max-height: 500px) and (orientation: landscape) {
+        .info-panel {
+            top: 5px;
+            right: 5px;
+        }
+
+        .info-toggle-btn {
+            width: 32px;
+            height: 32px;
+            font-size: 14px;
+        }
+
+        .info-content {
+            max-width: 220px;
+            width: 220px;
+            padding: 10px;
+            font-size: 12px;
+        }
+
+        .controls-toggle-btn {
+            top: 5px;
+            left: 5px;
+            width: 32px;
+            height: 32px;
+            font-size: 14px;
+        }
+
         #controls-container {
             max-height: 35vh;
         }
         
-        #info, #body-info {
-            top: 45px;
-            max-width: 250px;
+        #controls-container.collapsed {
+            transform: translateY(calc(100% - 35px));
         }
         
         .main-buttons {
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
+        }
+        
+        /* 移动端横屏自动收起控制面板和操作指南 */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #controls-container {
+                position: absolute !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                top: auto !important;
+                width: 100% !important;
+                transform: translateY(calc(100% - 35px));
+            }
+            
+            #controls-container.collapsed {
+                transform: translateY(calc(100% - 35px));
+            }
+            
+            .info-panel {
+                transform: translateX(calc(100% + 10px));
+            }
+            
+            .info-panel.expanded {
+                transform: translateX(0);
+            }
+        }
+        
+        /* 横屏下第一视角控制面板优化 - 移到最右端 */
+        .first-person-controls {
+            bottom: 20px;
+            right: 20px;
+            top: auto;
+            left: auto;
+            transform: none;
+            width: auto;
+            max-width: 200px;
+            padding: 10px 15px;
+            font-size: 11px;
         }
     }
 
@@ -693,16 +913,28 @@ label {
         
         button, #civilization-history-btn {
             font-size: 11px;
-            padding: 8px 6px;
+            padding: 6px 4px;
+        }
+        
+        #collision-message, #temperature-message {
+            font-size: 12px;
+            padding: 6px 10px;
+            top: 85px;
+            left: 50%;
+            right: auto;
+            transform: translateX(-50%);
+            max-width: 85%;
+            width: auto;
+            text-align: center;
         }
     }
 
     /* 触摸优化 */
     button, #toggle-controls {
-        min-height: 44px;
+        min-height: 36px;
         touch-action: manipulation;
     }
-}
+
 
 /* 平板设备优化 */
 @media (min-width: 769px) and (max-width: 1024px) {
@@ -759,12 +991,17 @@ label {
     justify-content: center;
 }
 
+/* 第一视角模式下隐藏操作说明 */
+.first-person-mode .info-panel {
+    display: none !important;
+}
+
 /* 第一视角模式样式 */
 .first-person-controls {
     position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 50%;
+    right: 30px;
+    transform: translateY(-50%);
     background: rgba(0, 0, 0, 0.7);
     color: #00ccff;
     padding: 15px 25px;
@@ -801,7 +1038,7 @@ label {
     transform: scale(1.05);
 }
 
-/* 第一视角模式下隐藏控制面板 */
+/* 第一视角模式下隐藏控制面板内容，但保留收起按钮 */
 .first-person-mode #controls-container {
     display: none;
 }
@@ -810,7 +1047,43 @@ label {
     display: none;
 }
 
-.first-person-mode #info,
-.first-person-mode #body-info {
-    display: none;
+/* 第一视角模式下隐藏操作指南 */
+.first-person-mode #info {
+    display: none !important;
+}
+
+/* 第一视角模式下控制面板在底部 */
+.first-person-mode #controls-container {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    z-index: 150 !important;
+}
+
+/* 第一视角控制面板移到最右端 */
+.first-person-controls {
+    position: absolute;
+    top: 80px;
+    right: 20px;
+    bottom: auto;
+    transform: none;
+    background: rgba(0, 0, 0, 0.7);
+    color: #00ccff;
+    padding: 15px 25px;
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: center;
+    z-index: 200;
+    border: 1px solid rgba(0, 204, 255, 0.5);
+    box-shadow: 0 0 15px rgba(0, 204, 255, 0.3);
+    backdrop-filter: blur(5px);
+    font-family: 'Courier New', monospace;
+}
+
+/* 第一视角模式下控制面板按钮始终显示 */
+.first-person-mode .controls-toggle-btn {
+    display: flex !important;
+    z-index: 1000;
 }
