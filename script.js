@@ -24,6 +24,17 @@ function optimizeForMobile() {
         const controlsContainer = document.getElementById('controls-container');
         controlsContainer.style.maxHeight = '45vh';
         
+        // 确保竖屏模式下控制面板初始为展开状态
+        const isLandscape = window.innerWidth > window.innerHeight;
+        if (!isLandscape) {
+            controlsContainer.classList.remove('collapsed');
+            controlsContainer.style.transform = '';
+            const toggleBtn = document.getElementById('toggle-controls');
+            if (toggleBtn) {
+                toggleBtn.textContent = '▼';
+            }
+        }
+        
         // 添加触摸提示
         if (!localStorage.getItem('mobileTipsShown') && !localStorage.getItem('mobileTipsDisabled')) {
             setTimeout(() => {
@@ -36,6 +47,11 @@ function optimizeForMobile() {
         handleOrientationChange();
         window.addEventListener('orientationchange', handleOrientationChange);
         window.addEventListener('resize', handleOrientationChange);
+        
+        // 确保设置按钮事件监听器正确绑定
+        setTimeout(() => {
+            setupControlsToggle();
+        }, 100);
     }
 }
 
@@ -2661,7 +2677,7 @@ function toggleFirstPersonView() {
         centerBody = null; // 取消任何聚焦
         document.body.classList.add('first-person-mode');
         btn.classList.add('active');
-        btn.textContent = '返回旁观视角';
+        btn.textContent = '旁观视角';
         
         // 隐藏不必要的UI元素，但保持控制面板可见
         document.getElementById('info').style.display = 'none';
@@ -3080,8 +3096,17 @@ document.getElementById('first-person-btn').addEventListener('click', () => {
 });
 
 // 控制面板展开/收起
-// ... existing code ...
-document.getElementById('toggle-controls').addEventListener('click', function() {
+function setupControlsToggle() {
+    const toggleBtn = document.getElementById('toggle-controls');
+    if (!toggleBtn) return;
+    
+    // 移除已存在的事件监听器
+    toggleBtn.removeEventListener('click', handleControlsToggle);
+    // 添加新的事件监听器
+    toggleBtn.addEventListener('click', handleControlsToggle);
+}
+
+function handleControlsToggle() {
     const controlsContainer = document.getElementById('controls-container');
     const toggleBtn = document.getElementById('toggle-controls');
     const isLandscape = window.innerWidth > window.innerHeight;
@@ -3105,7 +3130,10 @@ document.getElementById('toggle-controls').addEventListener('click', function() 
             controlsContainer.style.transform = 'translateY(calc(100% - 35px))';
         }
     }
-});
+}
+
+// 初始化控制面板切换功能
+setupControlsToggle();
 
 function showBodyInfo(body) {
     selectedBody = body;
