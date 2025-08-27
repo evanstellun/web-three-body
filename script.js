@@ -591,12 +591,18 @@ function checkCollisions() {
                 }
                 newName = testName;
 
+                // 根据新质量计算恒星颜色（仅当合并后的天体质量足够大时视为恒星）
+                let newColor = body1.color;
+                if (totalMass >= 1000) {
+                    newColor = getSpectralColor(totalMass);
+                }
+                
                 const newBody = new CelestialBody(
                     newName,
                     totalMass,
                     newX, newY, newZ,
                     newVx, newVy, newVz,
-                    body1.color // 保持原有颜色
+                    newColor
                 );
 
                 // 移除碰撞的天体并添加新天体
@@ -1110,10 +1116,10 @@ function drawTrails() {
         });
     }
 
-    // 按z深度排序（从后到前）
-    trailsWithDepth.sort((a, b) => a.avgZ - b.avgZ);
+    // 按z深度排序（从前到后绘制，确保近处轨迹遮挡远处轨迹）
+    trailsWithDepth.sort((a, b) => b.avgZ - a.avgZ);
 
-    // 绘制轨迹
+    // 绘制轨迹（取消恒星轨迹发光效果，统一处理）
     for (const trailData of trailsWithDepth) {
         const trail = trailData.trail;
         const body = trailData.body;
@@ -1172,8 +1178,8 @@ function drawBodies() {
         };
     });
 
-    // 按z深度排序（从后到前）
-    bodiesWithDepth.sort((a, b) => a.projected.z - b.projected.z);
+    // 按z深度排序（从前到后绘制，确保近处物体遮挡远处物体）
+    bodiesWithDepth.sort((a, b) => b.projected.z - a.projected.z);
 
     // 绘制天体
     for (let bodyData of bodiesWithDepth) {
@@ -1181,11 +1187,103 @@ function drawBodies() {
         const projected = bodyData.projected;
         const radius = bodyData.radius;
 
-        // 绘制天体
-        ctx.beginPath();
-        ctx.arc(projected.x, projected.y, Math.max(1, radius), 0, Math.PI * 2);
-        ctx.fillStyle = body.color;
-        ctx.fill();
+        // 判断是否为恒星（质量大于1000的天体视为恒星）
+        const isStar = body.mass >= 1000;
+        
+        if (isStar) {
+            // 为恒星添加发光效果
+            
+            // 根据恒星质量调整光晕大小，质量越大光晕越大
+            const massFactor = Math.min(2.5, Math.max(1.5, body.mass / 10000));
+            
+            // 外层光晕（最弱最大）
+            const outerGlowRadius = radius * 4 * massFactor;
+            const outerGradient = ctx.createRadialGradient(
+                projected.x, projected.y, 0,
+                projected.x, projected.y, outerGlowRadius
+            );
+            
+            // 解析颜色并创建发光效果
+            const color = body.color;
+            let r, g, b;
+            if (color.startsWith('#')) {
+                const hex = color.slice(1);
+                r = parseInt(hex.slice(0, 2), 16);
+                g = parseInt(hex.slice(2, 4), 16);
+                b = parseInt(hex.slice(4, 6), 16);
+            } else {
+                r = g = b = 255; // 默认白色
+            }
+            
+            // 外层光晕渐变
+            outerGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.3)`);
+            outerGradient.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, 0.15)`);
+            outerGradient.addColorStop(0.8, `rgba(${r}, ${g}, ${b}, 0.05)`);
+            outerGradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+            
+            // 绘制外层光晕
+            ctx.fillStyle = outerGradient;
+            ctx.beginPath();
+            ctx.arc(projected.x, projected.y, outerGlowRadius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 中层光晕（中等亮度）
+            const midGlowRadius = radius * 2.5 * massFactor;
+            const midGradient = ctx.createRadialGradient(
+                projected.x, projected.y, 0,
+                projected.x, projected.y, midGlowRadius
+            );
+            
+            midGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.6)`);
+            midGradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, 0.3)`);
+            midGradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+            
+            // 绘制中层光晕
+            ctx.fillStyle = midGradient;
+            ctx.beginPath();
+            ctx.arc(projected.x, projected.y, midGlowRadius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 内层光晕（最亮最接近恒星）
+            const innerGlowRadius = radius * 1.5;
+            const innerGradient = ctx.createRadialGradient(
+                projected.x, projected.y, 0,
+                projected.x, projected.y, innerGlowRadius
+            );
+            
+            innerGradient.addColorStop(0, `rgba(255, 255, 255, 0.9)`);
+            innerGradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, 0.7)`);
+            innerGradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, 0.3)`);
+            innerGradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+            
+            // 绘制内层光晕
+            ctx.fillStyle = innerGradient;
+            ctx.beginPath();
+            ctx.arc(projected.x, projected.y, innerGlowRadius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 绘制恒星核心（最亮部分）
+            const coreGradient = ctx.createRadialGradient(
+                projected.x, projected.y, 0,
+                projected.x, projected.y, radius
+            );
+            coreGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            coreGradient.addColorStop(0.4, `rgba(${r + 50}, ${g + 50}, ${b + 50}, 1)`);
+            coreGradient.addColorStop(0.8, body.color);
+            coreGradient.addColorStop(1, body.color);
+            
+            ctx.fillStyle = coreGradient;
+            ctx.beginPath();
+            ctx.arc(projected.x, projected.y, Math.max(1, radius), 0, Math.PI * 2);
+            ctx.fill();
+            
+        } else {
+            // 普通天体（如行星）保持原样绘制
+            ctx.beginPath();
+            ctx.arc(projected.x, projected.y, Math.max(1, radius), 0, Math.PI * 2);
+            ctx.fillStyle = body.color;
+            ctx.fill();
+        }
 
         // 绘制天体名称
         ctx.fillStyle = 'white';
