@@ -1,6 +1,56 @@
 // 移动设备检测和优化
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
 
+// 强制移动端竖屏
+function enforcePortraitMode() {
+    if (isMobile) {
+        const isLandscape = window.innerWidth > window.innerHeight;
+        if (isLandscape) {
+            // 显示横屏提示
+            const landscapeWarning = document.getElementById('landscape-warning');
+            if (!landscapeWarning) {
+                const warningDiv = document.createElement('div');
+                warningDiv.id = 'landscape-warning';
+                warningDiv.innerHTML = `
+                    <div style="
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.9);
+                        color: #00ccff;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 9999;
+                        text-align: center;
+                        padding: 20px;
+                    ">
+                        <div style="font-size: 24px; margin-bottom: 20px; font-weight: bold;">请使用竖屏模式</div>
+                        <div style="font-size: 16px; margin-bottom: 30px; line-height: 1.5;">
+                            此应用仅支持竖屏模式<br>
+                            请将设备旋转为竖屏以获得最佳体验
+                        </div>
+                        <div style="font-size: 48px; margin-bottom: 30px;">📱</div>
+                        <div style="font-size: 14px; color: #888;">
+                            旋转设备后此提示将自动消失
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(warningDiv);
+            }
+        } else {
+            // 移除横屏提示
+            const landscapeWarning = document.getElementById('landscape-warning');
+            if (landscapeWarning) {
+                landscapeWarning.remove();
+            }
+        }
+    }
+}
+
 // 移动端性能优化配置
 const mobileConfig = {
     trailLength: isMobile ? 50 : 100,
@@ -24,15 +74,12 @@ function optimizeForMobile() {
         const controlsContainer = document.getElementById('controls-container');
         controlsContainer.style.maxHeight = '45vh';
         
-        // 确保竖屏模式下控制面板初始为展开状态
-        const isLandscape = window.innerWidth > window.innerHeight;
-        if (!isLandscape) {
-            controlsContainer.classList.remove('collapsed');
-            controlsContainer.style.transform = '';
-            const toggleBtn = document.getElementById('toggle-controls');
-            if (toggleBtn) {
-                toggleBtn.textContent = '▼';
-            }
+        // 确保控制面板初始为展开状态
+        controlsContainer.classList.remove('collapsed');
+        controlsContainer.style.transform = '';
+        const toggleBtn = document.getElementById('toggle-controls');
+        if (toggleBtn) {
+            toggleBtn.textContent = '▼';
         }
         
         // 添加触摸提示
@@ -43,10 +90,10 @@ function optimizeForMobile() {
             }, 2000);
         }
         
-        // 横屏自动收起UI
-        handleOrientationChange();
-        window.addEventListener('orientationchange', handleOrientationChange);
-        window.addEventListener('resize', handleOrientationChange);
+        // 强制竖屏模式
+        enforcePortraitMode();
+        window.addEventListener('orientationchange', enforcePortraitMode);
+        window.addEventListener('resize', enforcePortraitMode);
         
         // 确保设置按钮事件监听器正确绑定
         setTimeout(() => {
@@ -126,137 +173,8 @@ function closeMobileTipsPermanently() {
     closeMobileTips();
 }
 
-// 处理横屏变化
-function handleOrientationChange() {
-    if (!isMobile) return;
-    
-    const isLandscape = window.innerWidth > window.innerHeight;
-    const controlsContainer = document.getElementById('controls-container');
-    const infoPanel = document.getElementById('info-panel');
-    const firstPersonBtn = document.getElementById('first-person-btn');
-    
-    if (isLandscape) {
-        // 横屏时自动收起控制面板，但允许用户通过按钮展开
-        if (controlsContainer) {
-            // 只在非用户展开状态时收起
-            if (!controlsContainer.classList.contains('expanded-by-user')) {
-                controlsContainer.classList.add('collapsed');
-                controlsContainer.style.transform = 'translateY(calc(100% - 35px))';
-            }
-        }
-        
-        if (infoPanel) {
-            // 保持操作指南面板可见
-            const infoContent = infoPanel.querySelector('.info-content');
-            if (infoContent) infoContent.style.display = 'none'; // 只收起内容，保持按钮可见
-        }
-        
-        // 第一视角按钮始终显示
-        if (firstPersonBtn) firstPersonBtn.style.display = 'block';
-        
-        // 调整第一视角渲染器尺寸
-        setTimeout(() => {
-            adjustFirstPersonRendererForLandscape();
-        }, 100);
-        
-        // 添加显示提示
-        showLandscapeHint();
-    } else {
-        // 竖屏时恢复显示
-        if (controlsContainer) {
-            // 只在非用户展开状态时恢复显示
-            if (!controlsContainer.classList.contains('expanded-by-user')) {
-                controlsContainer.classList.remove('collapsed');
-                controlsContainer.style.transform = '';
-            }
-        }
-        
-        if (infoPanel) {
-            const infoContent = infoPanel.querySelector('.info-content');
-            if (infoContent) infoContent.style.display = 'block';
-        }
-        
-        if (firstPersonBtn) firstPersonBtn.style.display = 'block';
-        
-        // 调整第一视角渲染器尺寸
-        setTimeout(() => {
-            adjustFirstPersonRendererForLandscape();
-        }, 100);
-    }
-}
 
-// 显示横屏提示
-function showLandscapeHint() {
-    // 移除已存在的提示
-    const existingHint = document.getElementById('landscape-hint');
-    if (existingHint) return;
-    
-    const hintDiv = document.createElement('div');
-    hintDiv.id = 'landscape-hint';
-    hintDiv.innerHTML = `
-        <div style="
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: #00ccff;
-            padding: 10px 15px;
-            border-radius: 20px;
-            z-index: 1000;
-            font-size: 12px;
-            border: 1px solid #00ccff;
-            pointer-events: none;
-        ">
-            横屏模式已隐藏所有控制面板，点击屏幕任意位置可临时显示
-        </div>
-    `;
-    document.body.appendChild(hintDiv);
-    
-    // 3秒后自动消失
-    setTimeout(() => {
-        if (hintDiv.parentElement) {
-            hintDiv.remove();
-        }
-    }, 3000);
-}
-
-// 临时显示控制面板（点击屏幕）
-document.addEventListener('click', function(e) {
-    if (!isMobile) return;
-    
-    const isLandscape = window.innerWidth > window.innerHeight;
-    if (!isLandscape) return;
-    
-    // 如果用户手动展开了控制面板，则不再自动收起
-    const controlsContainer = document.getElementById('controls-container');
-    const infoPanel = document.getElementById('info-panel');
-    
-    if (controlsContainer && infoPanel) {
-        // 如果用户手动展开了控制面板，则不进行自动操作
-        if (controlsContainer.classList.contains('expanded-by-user')) {
-            return;
-        }
-        
-        // 临时展开控制面板
-        controlsContainer.classList.remove('collapsed');
-        controlsContainer.style.transform = '';
-        
-        const infoContent = infoPanel.querySelector('.info-content');
-        if (infoContent) infoContent.style.display = 'block';
-        
-        // 3秒后再次收起（仅当用户没有手动展开时）
-        setTimeout(() => {
-            if (window.innerWidth > window.innerHeight && !controlsContainer.classList.contains('expanded-by-user')) {
-                controlsContainer.classList.add('collapsed');
-                controlsContainer.style.transform = 'translateY(calc(100% - 35px))';
                 
-                const infoContent = infoPanel.querySelector('.info-content');
-                if (infoContent) infoContent.style.display = 'none';
-            }
-        }, 3000);
-    }
-});
 
 const canvas = document.getElementById('simulationCanvas');
 const ctx = canvas.getContext('2d');
@@ -3109,26 +3027,16 @@ function setupControlsToggle() {
 function handleControlsToggle() {
     const controlsContainer = document.getElementById('controls-container');
     const toggleBtn = document.getElementById('toggle-controls');
-    const isLandscape = window.innerWidth > window.innerHeight;
     
     if (controlsContainer.classList.contains('collapsed')) {
         controlsContainer.classList.remove('collapsed');
         controlsContainer.classList.add('expanded-by-user');
         toggleBtn.textContent = '▼';
-        
-        // 在横屏模式下，清除transform样式以允许展开
-        if (isLandscape) {
-            controlsContainer.style.transform = '';
-        }
+        controlsContainer.style.transform = '';
     } else {
         controlsContainer.classList.add('collapsed');
         controlsContainer.classList.remove('expanded-by-user');
         toggleBtn.textContent = '⚙️';
-        
-        // 在横屏模式下，恢复transform样式
-        if (isLandscape) {
-            controlsContainer.style.transform = 'translateY(calc(100% - 35px))';
-        }
     }
 }
 
@@ -3159,9 +3067,10 @@ if(document.getElementById('toggle-body-info')) {
 }
 // 操作指南展开/收起
 document.getElementById('toggle-info').addEventListener('click', function () {
+    const infoPanel = document.getElementById('info');
     const content = document.getElementById('info-content');
     const button = this;
-
+    
     if (content.style.display === 'none' || content.style.display === '') {
         content.style.display = 'block';
         button.innerHTML = '✕';
