@@ -513,33 +513,50 @@ label {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+    body {
+        font-size: 14px;
+        touch-action: manipulation;
+    }
+
     #controls-content {
         grid-template-columns: 1fr;
     }
 
     #quote {
-        font-size: 14px;
-        line-height: 50px;
-        height: 50px;
+        font-size: 12px;
+        line-height: 40px;
+        height: 40px;
+        padding: 0 10px;
     }
 
     #quotes-container {
-        height: 50px;
+        height: 40px;
     }
 
     #info, #body-info {
-        top: 60px;
+        top: 50px;
         right: 10px;
-        padding: 15px;
-        font-size: 14px;
-        max-width: 280px;
-        transform: perspective(500px) rotateX(1deg);
+        left: 10px;
+        max-width: none;
+        width: auto;
+        padding: 12px;
+        font-size: 13px;
+        transform: none;
+        border-radius: 8px;
+    }
+
+    #info h3, #body-info h3 {
+        font-size: 16px;
     }
 
     #collision-message, #temperature-message {
-        font-size: 14px;
-        padding: 10px 15px;
-        top: 60px;
+        font-size: 13px;
+        padding: 8px 12px;
+        top: 50px;
+        left: 10px;
+        right: 10px;
+        max-width: none;
+        width: auto;
     }
 
     .celestial-body div {
@@ -554,7 +571,7 @@ label {
 
     #buttons-container {
         flex-direction: column;
-        gap: 15px;
+        gap: 10px;
     }
 
     .main-buttons, .io-buttons {
@@ -562,36 +579,50 @@ label {
         flex-wrap: wrap;
     }
 
+    .main-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
     button, #civilization-history-btn {
-        flex: 1;
-        min-width: 120px;
-        padding: px 12px;
-        font-size: 13px;
+        min-width: auto;
+        padding: 10px 8px;
+        font-size: 12px;
+        white-space: nowrap;
     }
 
     #simulation-container {
-        height: calc(100% - 60px);
+        height: calc(100% - 40px);
     }
 
     #controls-container {
-        height: 300px;
-        padding: 10px;
+        height: auto;
+        max-height: 45vh;
+        padding: 12px;
+        border-radius: 12px 12px 0 0;
+    }
+
+    #controls-header {
+        margin-bottom: 12px;
+        padding-bottom: 8px;
     }
 
     #controls-header h3 {
-        font-size: 18px;
+        font-size: 16px;
     }
 
     #toggle-controls {
-        width: 80px;
-        padding: 8px 10px;
+        width: 70px;
+        padding: 6px 8px;
+        font-size: 12px;
     }
 
     #speed-container {
         flex-direction: column;
         align-items: stretch;
-        gap: 15px;
-        padding: 15px;
+        gap: 8px;
+        padding: 12px;
     }
 
     .speed-control-wrapper {
@@ -599,34 +630,123 @@ label {
     }
 
     .speed-scale {
-        padding: 0 10px;
-        width: 100%;
-        box-sizing: border-box;
+        padding: 0 5px;
+        font-size: 11px;
     }
 
     #speed-control {
-        height: 8px;
-        margin: 10px 0;
+        height: 6px;
+        margin: 8px 0;
     }
 
     #speed-control::-webkit-slider-thumb {
-        width: 22px;
-        height: 22px;
+        width: 18px;
+        height: 18px;
     }
 
     .modal-content {
         width: 95%;
-        margin: 15% auto;
+        margin: 10% auto;
         padding: 15px;
+        border-radius: 12px;
     }
 
     #civilization-history-table th, #civilization-history-table td {
-        padding: 10px 8px;
-        font-size: 13px;
+        padding: 8px 5px;
+        font-size: 11px;
     }
 
     .modal-body {
-        max-height: 50vh;
+        max-height: 60vh;
+    }
+
+    .first-person-controls {
+        bottom: 15px;
+        left: 15px;
+        right: 15px;
+        transform: none;
+        padding: 12px;
+        font-size: 12px;
+    }
+
+    /* 横屏模式优化 */
+    @media (max-height: 500px) and (orientation: landscape) {
+        #controls-container {
+            max-height: 35vh;
+        }
+        
+        #info, #body-info {
+            top: 45px;
+            max-width: 250px;
+        }
+        
+        .main-buttons {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+
+    /* 小屏幕优化 */
+    @media (max-width: 375px) {
+        #quote {
+            font-size: 11px;
+        }
+        
+        button, #civilization-history-btn {
+            font-size: 11px;
+            padding: 8px 6px;
+        }
+    }
+
+    /* 触摸优化 */
+    button, #toggle-controls {
+        min-height: 44px;
+        touch-action: manipulation;
+    }
+}
+
+/* 平板设备优化 */
+@media (min-width: 769px) and (max-width: 1024px) {
+    #info, #body-info {
+        max-width: 320px;
+    }
+    
+    #controls-container {
+        max-height: 40vh;
+    }
+}
+
+/* 防止文字选择 */
+* {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* 高DPI屏幕优化 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    #quote {
+        font-weight: 300;
+    }
+}
+
+/* 移动端加载动画 */
+@media (max-width: 768px) {
+    @keyframes pulse {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
+    }
+    
+    .loading-animation {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #00ccff;
+        font-size: 16px;
+        animation: pulse 1.5s ease-in-out infinite;
+        z-index: 1000;
     }
 }
 

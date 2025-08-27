@@ -1,3 +1,84 @@
+// 移动设备检测和优化
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+
+// 移动端性能优化配置
+const mobileConfig = {
+    trailLength: isMobile ? 50 : 100,
+    renderQuality: isMobile ? 0.7 : 1.0,
+    animationInterval: isMobile ? 16 : 16,
+    touchSensitivity: isMobile ? 0.8 : 1.0,
+    vibrationEnabled: isMobile && navigator.vibrate
+};
+
+// 移动端UI调整
+function optimizeForMobile() {
+    if (isMobile) {
+        // 调整画布尺寸
+        const canvas = document.getElementById('simulationCanvas');
+        canvas.style.touchAction = 'none';
+        
+        // 调整字体大小
+        document.body.style.fontSize = '14px';
+        
+        // 优化控制面板
+        const controlsContainer = document.getElementById('controls-container');
+        controlsContainer.style.maxHeight = '45vh';
+        
+        // 添加触摸提示
+        if (!localStorage.getItem('mobileTipsShown')) {
+            setTimeout(() => {
+                showMobileTips();
+                localStorage.setItem('mobileTipsShown', 'true');
+            }, 2000);
+        }
+    }
+}
+
+// 显示移动端操作提示
+function showMobileTips() {
+    const tipDiv = document.createElement('div');
+    tipDiv.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ccff;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1000;
+            text-align: center;
+            max-width: 280px;
+            border: 1px solid #00ccff;
+            box-shadow: 0 0 20px rgba(0, 204, 255, 0.3);
+        ">
+            <h3>🚀 移动端操作指南</h3>
+            <p>🖐️ 单指拖拽：旋转视角</p>
+            <p>🤌 双指缩放：放大缩小</p>
+            <p>👆 单击天体：查看信息</p>
+            <p>👆👆 双击天体：聚焦跟随</p>
+            <button onclick="this.parentElement.parentElement.remove()" style="
+                margin-top: 15px;
+                padding: 8px 16px;
+                background: #00ccff;
+                color: black;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+            ">知道了</button>
+        </div>
+    `;
+    document.body.appendChild(tipDiv);
+    
+    // 3秒后自动消失
+    setTimeout(() => {
+        if (tipDiv.parentElement) {
+            tipDiv.remove();
+        }
+    }, 5000);
+}
+
 const canvas = document.getElementById('simulationCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
@@ -28,7 +109,7 @@ let civilizationStartTime = 0;
 let lastCivilizationRecorded = false;
 
 // 天体轨迹历史记录
-const trailLength = 100; // 移动端减少轨迹点数量以提高性能
+const trailLength = mobileConfig.trailLength;
 const trails = {}; // 存储每个天体的轨迹点
 
 // 光谱类型定义及其质量范围
@@ -2752,6 +2833,44 @@ window.addEventListener('resize', () => {
     canvas.height = document.getElementById('simulation-container').clientHeight;
 });
 
+// 横竖屏切换处理
+window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+        canvas.width = window.innerWidth;
+        canvas.height = document.getElementById('simulation-container').clientHeight;
+    }, 100);
+});
+
+// 防止页面缩放和双击缩放
+function preventZoom(e) {
+    if (e.touches.length > 1) {
+        e.preventDefault();
+    }
+}
+
+document.addEventListener('touchstart', preventZoom, { passive: false });
+document.addEventListener('touchmove', preventZoom, { passive: false });
+
+// 改进的触摸事件处理
+let touchStartTime = 0;
+let touchStartPos = { x: 0, y: 0 };
+
+function handleTouchStart(e) {
+    e.preventDefault();
+    touchStartTime = Date.now();
+    touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}
+
+// 网络状态检测和性能优化
+if (navigator.connection && isMobile) {
+    navigator.connection.addEventListener('change', () => {
+        if (navigator.connection.effectiveType === '2g' || navigator.connection.effectiveType === 'slow-2g') {
+            mobileConfig.renderQuality = 0.5;
+            mobileConfig.trailLength = 30;
+        }
+    });
+}
+
 // 键盘事件监听器
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -2766,6 +2885,9 @@ window.addEventListener('keydown', (e) => {
         }
     }
 });
+
+// 初始化移动端优化
+optimizeForMobile();
 
 
 
