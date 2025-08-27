@@ -31,6 +31,64 @@ let lastCivilizationRecorded = false;
 const trailLength = 100; // 移动端减少轨迹点数量以提高性能
 const trails = {}; // 存储每个天体的轨迹点
 
+// 光谱类型定义及其质量范围
+const spectralTypes = [
+    { name: 'M', minMass: 1000, maxMass: 3000, color: '#FF4500' },    // M型：红色
+    { name: 'K', minMass: 3000, maxMass: 8000, color: '#FFA500' },    // K型：橙色
+    { name: 'G', minMass: 8000, maxMass: 12000, color: '#FFD700' },   // G型：黄色
+    { name: 'F', minMass: 12000, maxMass: 16000, color: '#FFFACD' },  // F型：黄白色
+    { name: 'A', minMass: 16000, maxMass: 25000, color: '#FFFFFF' },  // A型：白色
+    { name: 'B', minMass: 25000, maxMass: 40000, color: '#87CEEB' },  // B型：蓝白色
+    { name: 'O', minMass: 40000, maxMass: 50000, color: '#4169E1' }   // O型：蓝色
+];
+
+// 根据恒星质量获取光谱颜色（均匀渐变）
+function getSpectralColor(mass) {
+    // 恒星质量范围：1000-50000，涵盖所有光谱类型
+    // 质量越大，颜色越偏蓝；质量越小，颜色越偏红
+    
+    // 将质量映射到0-1范围
+    const minMass = 1000;
+    const maxMass = 50000;
+    const normalizedMass = Math.max(0, Math.min(1, (mass - minMass) / (maxMass - minMass)));
+    
+    // 定义光谱颜色渐变点（从红色到蓝色）
+    // M型（红色）-> K型（橙色）-> G型（黄色）-> F型（黄白色）-> A型（白色）-> B型（蓝白色）-> O型（蓝色）
+    const spectralColors = [
+        { mass: 0.0, r: 255, g: 69, b: 0 },    // M型：红色 #FF4500
+        { mass: 0.17, r: 255, g: 165, b: 0 },  // K型：橙色 #FFA500
+        { mass: 0.33, r: 255, g: 215, b: 0 },  // G型：黄色 #FFD700
+        { mass: 0.5, r: 255, g: 250, b: 205 }, // F型：黄白色 #FFFACD
+        { mass: 0.67, r: 255, g: 255, b: 255 }, // A型：白色 #FFFFFF
+        { mass: 0.83, r: 135, g: 206, b: 235 }, // B型：蓝白色 #87CEEB
+        { mass: 1.0, r: 65, g: 105, b: 225 }    // O型：深蓝色 #4169E1
+    ];
+    
+    // 找到当前质量对应的两个颜色点
+    let lowerColor = spectralColors[0];
+    let upperColor = spectralColors[spectralColors.length - 1];
+    
+    for (let i = 0; i < spectralColors.length - 1; i++) {
+        if (normalizedMass >= spectralColors[i].mass && normalizedMass <= spectralColors[i + 1].mass) {
+            lowerColor = spectralColors[i];
+            upperColor = spectralColors[i + 1];
+            break;
+        }
+    }
+    
+    // 计算插值比例
+    const range = upperColor.mass - lowerColor.mass;
+    const t = range > 0 ? (normalizedMass - lowerColor.mass) / range : 0;
+    
+    // 线性插值计算RGB值
+    const r = Math.round(lowerColor.r + (upperColor.r - lowerColor.r) * t);
+    const g = Math.round(lowerColor.g + (upperColor.g - lowerColor.g) * t);
+    const b = Math.round(lowerColor.b + (upperColor.b - lowerColor.b) * t);
+    
+    // 返回十六进制颜色
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
 // 三体名句
 const quotes = [
     "不要回答！不要回答！不要回答！",
@@ -94,64 +152,6 @@ const quotes = [
 ];
 let currentQuoteIndex = 0;
 const quoteElement = document.getElementById('quote');
-
-// 光谱类型定义及其质量范围
-const spectralTypes = [
-    { name: 'M', minMass: 1000, maxMass: 3000, color: '#FF4500' },    // M型：红色
-    { name: 'K', minMass: 3000, maxMass: 8000, color: '#FFA500' },    // K型：橙色
-    { name: 'G', minMass: 8000, maxMass: 12000, color: '#FFD700' },   // G型：黄色
-    { name: 'F', minMass: 12000, maxMass: 16000, color: '#FFFACD' },  // F型：黄白色
-    { name: 'A', minMass: 16000, maxMass: 25000, color: '#FFFFFF' },  // A型：白色
-    { name: 'B', minMass: 25000, maxMass: 40000, color: '#87CEEB' },  // B型：蓝白色
-    { name: 'O', minMass: 40000, maxMass: 50000, color: '#4169E1' }   // O型：蓝色
-];
-
-// 根据恒星质量获取光谱颜色（均匀渐变）
-function getSpectralColor(mass) {
-    // 恒星质量范围：1000-50000，涵盖所有光谱类型
-    // 质量越大，颜色越偏蓝；质量越小，颜色越偏红
-    
-    // 将质量映射到0-1范围
-    const minMass = 1000;
-    const maxMass = 50000;
-    const normalizedMass = Math.max(0, Math.min(1, (mass - minMass) / (maxMass - minMass)));
-    
-    // 定义光谱颜色渐变点（从红色到蓝色）
-    // M型（红色）-> K型（橙色）-> G型（黄色）-> F型（黄白色）-> A型（白色）-> B型（蓝白色）-> O型（蓝色）
-    const spectralColors = [
-        { mass: 0.0, r: 255, g: 69, b: 0 },    // M型：红色 #FF4500
-        { mass: 0.17, r: 255, g: 165, b: 0 },  // K型：橙色 #FFA500
-        { mass: 0.33, r: 255, g: 215, b: 0 },  // G型：黄色 #FFD700
-        { mass: 0.5, r: 255, g: 250, b: 205 }, // F型：黄白色 #FFFACD
-        { mass: 0.67, r: 255, g: 255, b: 255 }, // A型：白色 #FFFFFF
-        { mass: 0.83, r: 135, g: 206, b: 235 }, // B型：蓝白色 #87CEEB
-        { mass: 1.0, r: 65, g: 105, b: 225 }    // O型：深蓝色 #4169E1
-    ];
-    
-    // 找到当前质量对应的两个颜色点
-    let lowerColor = spectralColors[0];
-    let upperColor = spectralColors[spectralColors.length - 1];
-    
-    for (let i = 0; i < spectralColors.length - 1; i++) {
-        if (normalizedMass >= spectralColors[i].mass && normalizedMass <= spectralColors[i + 1].mass) {
-            lowerColor = spectralColors[i];
-            upperColor = spectralColors[i + 1];
-            break;
-        }
-    }
-    
-    // 计算插值比例
-    const range = upperColor.mass - lowerColor.mass;
-    const t = range > 0 ? (normalizedMass - lowerColor.mass) / range : 0;
-    
-    // 线性插值计算RGB值
-    const r = Math.round(lowerColor.r + (upperColor.r - lowerColor.r) * t);
-    const g = Math.round(lowerColor.g + (upperColor.g - lowerColor.g) * t);
-    const b = Math.round(lowerColor.b + (upperColor.b - lowerColor.b) * t);
-    
-    // 返回十六进制颜色
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-}
 
 // 天体类
 class CelestialBody {
@@ -260,6 +260,11 @@ function updateBodies() {
 
         // 更新半径
         bodies[i].radius = Math.cbrt(bodies[i].mass) * 0.5;
+        
+        // 根据质量更新恒星颜色（仅对恒星）
+        if (i < 3) { // 恒星
+            bodies[i].color = getSpectralColor(bodies[i].mass);
+        }
         
         // 根据质量更新恒星颜色（仅对恒星）
         if (i < 3) { // 恒星
@@ -414,7 +419,7 @@ function randomizeBodies() {
 
         // 更新半径
         bodies[i].radius = Math.cbrt(bodies[i].mass) * 0.5;
-        
+
         // 根据质量更新恒星颜色（仅对恒星）
         if (i < 3) { // 恒星
             bodies[i].color = getSpectralColor(bodies[i].mass);
@@ -586,15 +591,12 @@ function checkCollisions() {
                 }
                 newName = testName;
 
-                // 根据新的总质量重新计算恒星颜色
-                const newColor = getSpectralColor(totalMass);
-                
                 const newBody = new CelestialBody(
                     newName,
                     totalMass,
                     newX, newY, newZ,
                     newVx, newVy, newVz,
-                    newColor // 使用基于新质量的光谱颜色
+                    body1.color // 保持原有颜色
                 );
 
                 // 移除碰撞的天体并添加新天体
@@ -1539,10 +1541,9 @@ function updateStarsInFirstPersonView(planetP) {
                 color: 0xffffff
             });
         } else {
-            // 近距离恒星：使用光谱颜色，取消透明度设置
-            const spectralColor = getSpectralColor(star.mass);
+            // 近距离恒星：黄色，取消透明度设置
             starMaterial = new THREE.MeshBasicMaterial({
-                color: spectralColor
+                color: 0xffff66
             });
         }
         
@@ -1592,37 +1593,15 @@ function updateStarsInFirstPersonView(planetP) {
         } else {
             // 晨昏状态：太阳边界到地平线的距离在±5倍太阳半径范围内
             visibilityLabel = '(晨昏)';
-            // 计算可见部分的比例
+            // 简化计算：基于太阳中心到地平线的距离
             const h = sunCenterToSurface; // 太阳中心到地平线的距离
             const r = sunRadius; // 太阳半径
-                
-                if (h >= 0) {
-                    // 太阳中心在地平线以上，计算被遮挡的部分
-                    const segmentHeight = r - h; // 被遮挡的高度
-                    if (segmentHeight <= 0) {
-                        visibilityRatio = 1.0;
-                    } else {
-                        // 计算被遮挡的弓形面积比例
-                        const theta = 2 * Math.acos((r - segmentHeight) / r);
-                        const segmentArea = (r * r * (theta - Math.sin(theta))) / 2;
-                        const circleArea = Math.PI * r * r;
-                        visibilityRatio = (circleArea - segmentArea) / circleArea;
-                    }
-                } else {
-                    // 太阳中心在地平线以下，计算可见的部分
-                    const segmentHeight = r + h; // 可见的高度
-                    if (segmentHeight <= 0) {
-                        visibilityRatio = 0.0;
-                    } else {
-                        // 计算可见的弓形面积比例
-                        const theta = 2 * Math.acos((r - segmentHeight) / r);
-                        const segmentArea = (r * r * (theta - Math.sin(theta))) / 2;
-                        const circleArea = Math.PI * r * r;
-                        visibilityRatio = segmentArea / circleArea;
-                    }
-                }
-            // 确保可见比例在0-1之间
-            visibilityRatio = Math.max(0, Math.min(1, visibilityRatio));
+            
+            // 简单的线性判定：当太阳中心到地平线距离为0时，可见比例为0.5
+            // 当太阳中心在地平线上时，可见比例线性增加到1
+            // 当太阳中心在地平线下时，可见比例线性减少到0
+            const distanceRatio = h / (r * 2); // 距离比例
+            visibilityRatio = Math.max(0, Math.min(1, 0.5 + distanceRatio));
         }
         
         // 保存到新的恒星对象数组
@@ -1667,26 +1646,26 @@ function updateStarsInFirstPersonView(planetP) {
 function updateGroundBrightness() {
     if (!ground) return;
     
-    // 计算所有可见恒星的总亮度，使用简单的线性插值确保平滑过渡
-    let totalBrightness = 0;
+    // 使用太阳中心到地平线的距离来计算地面亮度，实现均匀变化
+    let uniformGroundBrightness = 0;
+    
     starObjects.forEach(starObj => {
-        // 考虑可见恒星和晨昏状态下的恒星，根据可见比例调整亮度
         if (starObj.visibilityLabel === '(可见)' || starObj.visibilityLabel === '(晨昏)') {
-            const ratio = starObj.visibilityRatio || 1.0;
-            totalBrightness += starObj.brightness * ratio;
+            // 使用太阳中心到行星表面的垂直距离
+            const sunHeight = starObj.sunCenterToSurface;
+            const sunRadius = 10; // 太阳半径
+            
+            // 将高度标准化到 -2r 到 2r 的范围，实现线性亮度变化
+            const normalizedHeight = (sunHeight + sunRadius * 2) / (sunRadius * 4);
+            uniformGroundBrightness = Math.max(0, Math.min(1, normalizedHeight));
         }
     });
     
-    // 根据总亮度调整地面颜色 - 实现平滑变暗效果
-    const rawBrightness = Math.min(1, totalBrightness * 0.8); // 原始亮度值
-    
-    // 使用线性插值实现平滑过渡，确保亮度单调递减
-    const smoothBrightness = rawBrightness; // 直接使用线性亮度，避免幂函数造成的非线性变化
-    
+    // 使用线性插值实现平滑过渡
     const baseColor = new THREE.Color(0x202020); // 更深的深灰色
     const brightColor = new THREE.Color(0xC0C0C0); // 更亮的浅灰色
     
-    const finalColor = baseColor.lerp(brightColor, smoothBrightness);
+    const finalColor = baseColor.lerp(brightColor, uniformGroundBrightness);
     ground.material.color = finalColor;
     
     // 更新格子线框颜色 - 始终比地面颜色亮
@@ -1726,17 +1705,33 @@ function updateSkyDomeColor(stars, planetP) {
         minStarDistance = 1000; // 设置一个很大的距离值
     }
     
-    // 根据太阳距离计算天空亮度和颜色 - 使用简单的线性插值确保平滑过渡
-    const maxDistance = 400; // 增加最大距离，使太阳在更远距离时仍能影响天空
-    const brightnessFactor = Math.max(0, 1 - minStarDistance / maxDistance);
-    const enhancedBrightnessFactor = brightnessFactor * maxVisibilityRatio; // 使用线性插值确保单调变化
+    // 使用太阳中心到地平线的距离来计算亮度，而不是简单的距离
+    // 这样可以实现更均匀的亮度变化
+    let linearBrightness = 0;
+    let closestSunHeight = 0;
+    
+    starObjects.forEach(starObj => {
+        if (starObj.visibilityLabel === '(可见)' || starObj.visibilityLabel === '(晨昏)') {
+            // 使用太阳中心到行星表面的垂直距离
+            const sunHeight = starObj.sunCenterToSurface;
+            const sunRadius = 10; // 太阳半径
+            
+            // 将高度标准化到 -2r 到 2r 的范围，实现线性亮度变化
+            const normalizedHeight = (sunHeight + sunRadius * 2) / (sunRadius * 4);
+            linearBrightness = Math.max(0, Math.min(1, normalizedHeight));
+            closestSunHeight = sunHeight;
+        }
+    });
+    
+    // 确保亮度均匀变化，使用线性插值
+    const uniformBrightness = linearBrightness;
     
     // 根据太阳距离调整天空颜色 - 从深蓝黑色到浅天蓝色过渡
     // 太阳接近时：浅天蓝色 (135, 206, 235)
     // 太阳远离时：深蓝黑色 (0, 0, 20)
-    const baseR = Math.floor(0 + enhancedBrightnessFactor * 135); // 红色分量从0到135
-    const baseG = Math.floor(0 + enhancedBrightnessFactor * 206); // 绿色分量从0到206
-    const baseB = Math.floor(20 + enhancedBrightnessFactor * 215); // 蓝色分量从20到235
+    const baseR = Math.floor(0 + uniformBrightness * 135); // 红色分量从0到135
+    const baseG = Math.floor(0 + uniformBrightness * 206); // 绿色分量从0到206
+    const baseB = Math.floor(20 + uniformBrightness * 215); // 蓝色分量从20到235
     
     // 创建Three.js颜色对象
     const skyColor = new THREE.Color(`rgb(${baseR}, ${baseG}, ${baseB})`);
@@ -1744,8 +1739,8 @@ function updateSkyDomeColor(stars, planetP) {
     // 更新天穹颜色
     skyDome.material.color = skyColor;
     
-    // 根据亮度调整天穹透明度 - 增强太阳对天空透明度的影响
-    const opacity = Math.max(0.2, Math.min(0.95, 0.2 + enhancedBrightnessFactor * 0.75)); // 降低最小透明度，增强透明度变化
+    // 根据亮度调整天穹透明度 - 使用线性变化
+    const opacity = Math.max(0.2, Math.min(0.95, 0.2 + uniformBrightness * 0.75));
     skyDome.material.opacity = opacity;
 }
 
@@ -1891,43 +1886,32 @@ function drawGround(brightness = 0) {
     const stars = bodies.filter(body => body.name !== 'p');
     const planetP = bodies.find(body => body.name === 'p');
     
-    // 计算太阳的最近距离
-    let minStarDistance = Infinity;
+    // 使用太阳中心到地平线的距离来计算地面亮度
+    let uniformGroundBrightness = 0;
+    
     stars.forEach(star => {
         const dx = star.x - planetP.x;
         const dy = star.y - planetP.y;
         const dz = star.z - planetP.z;
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        minStarDistance = Math.min(minStarDistance, distance);
+        
+        // 计算太阳中心到行星表面的垂直距离
+        const sunHeight = star.y - planetP.y - 20; // 行星半径为20
+        const sunRadius = 10; // 太阳半径
+        
+        // 将高度标准化到 -2r 到 2r 的范围，实现线性亮度变化
+        const normalizedHeight = (sunHeight + sunRadius * 2) / (sunRadius * 4);
+        uniformGroundBrightness = Math.max(0, Math.min(1, normalizedHeight));
     });
     
-    // 根据太阳距离计算地面亮度和颜色
-    const maxDistance = 300;
-    const starBrightnessFactor = Math.max(0, 1 - minStarDistance / maxDistance);
-    
-    // 结合恒星亮度和原始亮度
-    const totalBrightness = Math.max(0, Math.min(1, brightness + starBrightnessFactor * 0.8));
-    
-    // 根据太阳距离调整地面颜色
-    // 太阳接近时：明亮的浅灰色
-    // 太阳远离时：冷灰黑色
+    // 根据太阳高度计算地面颜色
     const baseR = 64, baseG = 64, baseB = 64; // 深灰色 #404040
     const brightR = 200, brightG = 200, brightB = 200; // 明亮的浅灰色
-    const warmR = 220, warmG = 210, warmB = 200; // 温暖的浅灰褐色
     
-    // 根据亮度混合颜色
-    let finalR, finalG, finalB;
-    if (starBrightnessFactor > 0.5) {
-        // 太阳接近时，使用明亮的浅灰色
-        finalR = Math.floor(baseR + (brightR - baseR) * totalBrightness);
-        finalG = Math.floor(baseG + (brightG - baseG) * totalBrightness);
-        finalB = Math.floor(baseB + (brightB - baseB) * totalBrightness);
-    } else {
-        // 太阳远离时，使用冷色调
-        finalR = Math.floor(baseR + (128 - baseR) * totalBrightness);
-        finalG = Math.floor(baseG + (128 - baseG) * totalBrightness);
-        finalB = Math.floor(baseB + (128 - baseB) * totalBrightness);
-    }
+    // 使用线性插值计算最终颜色
+    const finalR = Math.floor(baseR + (brightR - baseR) * uniformGroundBrightness);
+    const finalG = Math.floor(baseG + (brightG - baseG) * uniformGroundBrightness);
+    const finalB = Math.floor(baseB + (brightB - baseB) * uniformGroundBrightness);
     
     // 更新Three.js地面材质颜色
     if (groundTerrain) {
@@ -1937,7 +1921,7 @@ function drawGround(brightness = 0) {
     // 更新碎石颜色
     debrisStones.forEach(stone => {
         const stoneGray = Math.floor(Math.random() * 60 + 80);
-        const adjustedGray = Math.floor(stoneGray * (0.5 + totalBrightness * 0.5));
+        const adjustedGray = Math.floor(stoneGray * (0.5 + uniformGroundBrightness * 0.5));
         stone.material.color.setRGB(adjustedGray/255, adjustedGray/255, adjustedGray/255);
     });
     
@@ -2036,36 +2020,40 @@ function drawSkyDome() {
     const stars = bodies.filter(body => body.name !== 'p');
     const planetP = bodies.find(body => body.name === 'p');
     
-    // 计算太阳的最近距离
-    let minStarDistance = Infinity;
+    // 使用太阳中心到地平线的距离来计算天空亮度
+    let uniformSkyBrightness = 0;
+    
     stars.forEach(star => {
         const dx = star.x - planetP.x;
         const dy = star.y - planetP.y;
         const dz = star.z - planetP.z;
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        minStarDistance = Math.min(minStarDistance, distance);
+        
+        // 计算太阳中心到行星表面的垂直距离
+        const sunHeight = star.y - planetP.y - 20; // 行星半径为20
+        const sunRadius = 10; // 太阳半径
+        
+        // 将高度标准化到 -2r 到 2r 的范围，实现线性亮度变化
+        const normalizedHeight = (sunHeight + sunRadius * 2) / (sunRadius * 4);
+        uniformSkyBrightness = Math.max(0, Math.min(1, normalizedHeight));
     });
     
-    // 根据太阳距离计算天空亮度和颜色
-    const maxDistance = 300;
-    const brightnessFactor = Math.max(0, 1 - minStarDistance / maxDistance);
+    // 根据太阳高度计算天空颜色 - 从深蓝黑色到浅天蓝色过渡
+    // 太阳接近时：浅天蓝色 (135, 206, 235)
+    // 太阳远离时：深蓝黑色 (0, 0, 20)
+    const baseR = Math.floor(0 + uniformSkyBrightness * 135);
+    const baseG = Math.floor(0 + uniformSkyBrightness * 206);
+    const baseB = Math.floor(20 + uniformSkyBrightness * 215);
     
-    // 根据太阳距离调整天空颜色
-    // 太阳接近时：明亮的浅天蓝色
-    // 太阳远离时：深蓝到黑色
-    const baseR = Math.floor(0 + brightnessFactor * 200); // 增强红色分量
-    const baseG = Math.floor(0 + brightnessFactor * 230); // 增强绿色分量
-    const baseB = Math.floor(17 + brightnessFactor * 238); // 增强蓝色分量
+    const midR = Math.floor(0 + uniformSkyBrightness * 120);
+    const midG = Math.floor(0 + uniformSkyBrightness * 180);
+    const midB = Math.floor(30 + uniformSkyBrightness * 190);
     
-    const midR = Math.floor(0 + brightnessFactor * 180);
-    const midG = Math.floor(0 + brightnessFactor * 210);
-    const midB = Math.floor(51 + brightnessFactor * 204);
+    const horizonR = Math.floor(0 + uniformSkyBrightness * 100);
+    const horizonG = Math.floor(0 + uniformSkyBrightness * 150);
+    const horizonB = Math.floor(40 + uniformSkyBrightness * 170);
     
-    const horizonR = Math.floor(0 + brightnessFactor * 150);
-    const horizonG = Math.floor(0 + brightnessFactor * 180);
-    const horizonB = Math.floor(85 + brightnessFactor * 170);
-    
-    // 绘制天空渐变（根据太阳距离调整亮度和颜色，增强地平线过渡效果）
+    // 绘制天空渐变（使用线性亮度变化）
     const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.6);
     
     skyGradient.addColorStop(0, `rgb(${baseR}, ${baseG}, ${baseB})`);
@@ -2076,8 +2064,8 @@ function drawSkyDome() {
     ctx.fillStyle = skyGradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height * 0.6);
     
-    // 绘制星星背景（太阳近时星星变暗）
-    const starBrightness = Math.max(0.1, 1 - brightnessFactor * 0.8);
+    // 绘制星星背景（使用线性亮度变化）
+    const starBrightness = Math.max(0.1, 1 - uniformSkyBrightness);
     drawStars(starBrightness);
 }
 
@@ -2232,18 +2220,16 @@ function drawStarsOnSkyDome(planetP) {
             ctx.arc(skyX, skyY, flyingStarSize, 0, Math.PI * 2);
             ctx.fill();
         } else {
-            // 近距离恒星：使用光谱颜色，有光晕
-            const spectralColor = getSpectralColor(star.mass);
-            // 将十六进制颜色转换为RGB
-            const starR = parseInt(spectralColor.substr(1, 2), 16);
-            const starG = parseInt(spectralColor.substr(3, 2), 16);
-            const starB = parseInt(spectralColor.substr(5, 2), 16);
+            // 近距离恒星：黄色，有光晕
+            const starR = 255;
+            const starG = 255;
+            const starB = 100;
             
             // 绘制恒星光晕
             const gradient = ctx.createRadialGradient(skyX, skyY, 0, skyX, skyY, size * 2);
             gradient.addColorStop(0, `rgba(${starR}, ${starG}, ${starB}, ${alpha})`);
             gradient.addColorStop(0.3, `rgba(${starR}, ${starG}, ${starB}, ${alpha * 0.6})`);
-            gradient.addColorStop(0.7, `rgba(${starR}, ${Math.max(0, starG-55)}, ${starB}, ${alpha * 0.3})`);
+            gradient.addColorStop(0.7, `rgba(${starR}, ${starG-55}, ${starB}, ${alpha * 0.3})`);
             gradient.addColorStop(1, `rgba(${starR}, ${starG}, ${starB}, 0)`);
             
             ctx.fillStyle = gradient;
