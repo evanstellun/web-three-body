@@ -3483,15 +3483,27 @@ function updateStarInfo() {
         let starStatus = '';
         const previousHeight = previousStarHeights[body.name] || heightAngle;
         
-        if (heightAngle >= 10 && heightAngle <= 90) {
-            starStatus = '升起';
-        } else if (heightAngle >= -90 && heightAngle <= -10) {
-            starStatus = '落下';
-        } else if (heightAngle > -10 && heightAngle < 10) {
-            if (heightAngle > previousHeight) {
-                starStatus = '日出';
-            } else {
-                starStatus = '日落';
+        // 飞星判断逻辑：当恒星与行星距离大于900时成为飞星
+        let isFlyingStar = false;
+        if (distance > 900) {
+            isFlyingStar = true;
+            starStatus = '飞星';
+            // 修改恒星颜色为白色
+            body.color = '#ffffff';
+        } else {
+            // 恢复原来的恒星颜色
+            body.color = getSpectralColor(body.mass);
+            
+            if (heightAngle >= 10 && heightAngle <= 90) {
+                starStatus = '升起';
+            } else if (heightAngle >= -90 && heightAngle <= -10) {
+                starStatus = '落下';
+            } else if (heightAngle > -10 && heightAngle < 10) {
+                if (heightAngle > previousHeight) {
+                    starStatus = '日出';
+                } else {
+                    starStatus = '日落';
+                }
             }
         }
         
