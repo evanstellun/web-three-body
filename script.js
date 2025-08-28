@@ -1810,6 +1810,7 @@ console.log('文本标注容器初始化成功');
     ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0; // 地面位于Y=0位置
+    ground.renderOrder = 1; // 确保地面在所有其他对象之上渲染
     firstPersonScene.add(ground);
     
     // 创建格子线框 - 缓解摩尔纹效应
@@ -2018,15 +2019,108 @@ function updateStarsInFirstPersonView(planetP) {
         
         // 使用光谱颜色
         const spectralColor = getSpectralColor(star.mass);
+        
+        // 直接使用star对象的color属性，确保光晕颜色与恒星本身颜色一致
+        const starColor = star.color || spectralColor;
+        
+        // 创建恒星核心材质
         const starMaterial = new THREE.MeshBasicMaterial({
-            color: spectralColor
+            color: starColor
         });
         
         const starMesh = new THREE.Mesh(starGeometry, starMaterial);
         starMesh.position.set(x, y, z);
         
-        // 移除恒星光晕效果
+        // 添加平滑光晕效果 - 应用旁观模式的渲染方式，但光晕大小调整为恒星半径的0.5倍左右
         let glowMeshes = [];
+        
+        // 解析光谱颜色为RGB值
+        let r, g, b;
+        if (starColor.startsWith('#')) {
+            const hex = starColor.slice(1);
+            r = parseInt(hex.slice(0, 2), 16);
+            g = parseInt(hex.slice(2, 4), 16);
+            b = parseInt(hex.slice(4, 6), 16);
+        } else {
+            // 如果不是十六进制颜色，尝试使用THREE.Color直接解析
+            const tempColor = new THREE.Color(starColor);
+            r = Math.round(tempColor.r * 255);
+            g = Math.round(tempColor.g * 255);
+            b = Math.round(tempColor.b * 255);
+        }
+        
+        // 自定义着色器材质，实现光晕从中心到边缘的平滑渐变效果，并确保光晕不会出现在地面以下
+        const createGlowMaterial = (color, maxOpacity) => {
+            return new THREE.ShaderMaterial({
+                uniforms: {
+                    color: { value: color },
+                    maxOpacity: { value: maxOpacity }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    varying float vGroundClip;
+                    
+                    void main() {
+                        vUv = uv;
+                        
+                        // 计算顶点是否在地面以下
+                        // 假设地面在y=0位置
+                        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                        vGroundClip = max(0.0, worldPos.y + 0.5); // 添加小偏移以平滑过渡
+                        
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 color;
+                    uniform float maxOpacity;
+                    varying vec2 vUv;
+                    varying float vGroundClip;
+                    
+                    void main() {
+                        // 计算从中心到边缘的距离（0-1）
+                        vec2 center = vec2(0.5, 0.5);
+                        float distance = length(vUv - center) * 2.0; // 映射到0-1范围
+                        
+                        // 使用平滑的衰减函数，使光晕从中心到边缘逐渐淡出到完全透明
+                        // 减小衰减因子，使光晕更加明显
+                        float opacity = maxOpacity * exp(-distance * 2.0);
+                        
+                        // 添加地面裁剪，确保光晕不会出现在地面以下
+                        opacity *= smoothstep(0.0, 1.0, vGroundClip);
+                        
+                        gl_FragColor = vec4(color, opacity);
+                    }
+                `,
+                transparent: true,
+                depthWrite: false,
+                depthTest: false,
+                blending: THREE.AdditiveBlending
+            });
+        };
+        
+        // 检查恒星是否在地面以上，如果在地面以下则不添加光晕
+        if (y > -starSize) { // 确保恒星大部分在地面以上才显示光晕
+            // 内层光晕（柔和的光晕，使用自定义着色器实现平滑渐变）- 增加透明度使光晕更明显
+            const innerGlowRadius = starSize * 1.2; // 增大尺寸为恒星的1.2倍
+            const innerGlowGeometry = new THREE.SphereGeometry(innerGlowRadius, 32, 32);
+            const innerGlowMaterial = createGlowMaterial(new THREE.Color(r/255, g/255, b/255), 1); // 透明度从0.3增加到0.8
+            const innerGlowMesh = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+            innerGlowMesh.position.set(x, y, z);
+            innerGlowMesh.renderOrder = -1; // 确保光晕在地面之前渲染
+            firstPersonScene.add(innerGlowMesh);
+            glowMeshes.push(innerGlowMesh);
+            
+            // 外层光晕（更弱更弥散的光晕，使用自定义着色器实现平滑渐变）- 增加透明度使光晕更明显
+            const outerGlowRadius = starSize * 1.8; // 增大尺寸为恒星的1.8倍
+            const outerGlowGeometry = new THREE.SphereGeometry(outerGlowRadius, 32, 32);
+            const outerGlowMaterial = createGlowMaterial(new THREE.Color(r/255, g/255, b/255), 0.6); // 透明度从0.35增加到0.6
+            const outerGlowMesh = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
+            outerGlowMesh.position.set(x, y, z);
+            outerGlowMesh.renderOrder = -1; // 确保光晕在地面之前渲染
+            firstPersonScene.add(outerGlowMesh);
+            glowMeshes.push(outerGlowMesh);
+        }
         
         firstPersonScene.add(starMesh);
         
@@ -2098,6 +2192,21 @@ function updateStarsInFirstPersonView(planetP) {
             } else {
                 star.mesh.material.dispose();
             }
+        }
+        
+        // 清除光晕网格对象
+        if (star.glowMeshes && star.glowMeshes.length > 0) {
+            star.glowMeshes.forEach(glowMesh => {
+                firstPersonScene.remove(glowMesh);
+                if (glowMesh.geometry) glowMesh.geometry.dispose();
+                if (glowMesh.material) {
+                    if (Array.isArray(glowMesh.material)) {
+                        glowMesh.material.forEach(material => material.dispose());
+                    } else {
+                        glowMesh.material.dispose();
+                    }
+                }
+            });
         }
     });
     
