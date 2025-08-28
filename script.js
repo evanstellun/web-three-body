@@ -491,7 +491,7 @@ function getNextCivilizationId() {
 }
 
 // 记录文明历史
-// 修改 showCivilizationHistory 函数以显示文明发展状态
+// 显示文明发展状态
 function showCivilizationHistory() {
     const modal = document.getElementById('civilization-history-modal');
     const tableBody = document.getElementById('civilization-history-body');
@@ -546,7 +546,7 @@ function showCivilizationHistory() {
         modalBody.scrollTop = modalBody.scrollHeight;
     }, 100);
 }
-// 修改 randomizeBodies 函数
+// 随机天体
 function randomizeBodies() {
     // 如果上一个文明还没有毁灭，记录它繁荣昌盛
     if (!lastCivilizationRecorded && time > 0) {
@@ -642,18 +642,7 @@ function randomizeBodies() {
     
     // 更新UI中的时间显示
     document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
-    
-    // 如果在第一视角模式下，自动重新获取恒星数据
-    if (isFirstPersonView && isShowingStarInfo) {
-        showStarInfo();
-    }
-    
-    // 如果在第一视角模式下，自动重新获取恒星数据
-    if (isFirstPersonView && isShowingStarInfo) {
-        showStarInfo();
-    }
-    
-    // 更新第一视角按钮状态
+
     updateFirstPersonButtonState();
 }
 function resetSimulation() {
@@ -726,10 +715,6 @@ function calculateGravity(body1, body2) {
 }
 
 // 检查碰撞
-// 检查碰撞
-// 检查碰撞
-// 修改 checkCollisions 函数中的相关部分
-// 修改 checkCollisions 函数
 function checkCollisions() {
     for (let i = 0; i < bodies.length; i++) {
         for (let j = i + 1; j < bodies.length; j++) {
@@ -851,13 +836,7 @@ function checkCollisions() {
         }
     }
     
-    // 如果在第一视角模式下且正在显示恒星信息，立即更新恒星信息
-    if (isFirstPersonView && isShowingStarInfo) {
-        setTimeout(() => {
-            showStarInfo();
-        }, 50); // 短暂延迟确保DOM更新完成
-    }
-    
+
     // 更新第一视角按钮状态
     updateFirstPersonButtonState();
 }
@@ -866,13 +845,6 @@ function showCollisionMessage(message) {
     const collisionMessage = document.getElementById('collision-message');
     collisionMessage.textContent = message;
     collisionMessage.style.display = 'block';
-
-    // 如果在第一视角模式下，自动重新获取恒星数据
-    if (isFirstPersonView && isShowingStarInfo) {
-        setTimeout(() => {
-            showStarInfo();
-        }, 100); // 延迟100ms确保碰撞处理完成
-    }
 
     setTimeout(() => {
         collisionMessage.style.display = 'none';
@@ -908,7 +880,7 @@ function showPlanetDestroyedMessage() {
     }, 5000);
 }
 
-// 修改 showTemperatureMessage 函数
+// 显示文明毁灭信息
 function showTemperatureMessage(message) {
     // 如果消息与上次相同或文明已经记录，则不重复显示
     if (message === lastTemperatureMessage || lastCivilizationRecorded) return;
@@ -957,7 +929,7 @@ function showTemperatureMessage(message) {
     setTimeout(() => {
         temperatureMessage.style.display = 'none';
     }, 5000);
-}// 修改 recordCivilization 函数
+}// 记录文明历史
 function recordCivilization(destructionMethod, existenceTime, era) {
     try {
         let history = [];
@@ -1700,6 +1672,14 @@ function drawFirstPersonView() {
     console.log('准备调用updateStarsInFirstPersonView函数，当前isFirstPersonView状态:', isFirstPersonView);
     updateStarsInFirstPersonView(referencePoint);
     
+    // 计算总亮度，确保天空和地面颜色更新
+    calculateTotalBrightness();
+    
+    // 更新天空和地面颜色
+    const stars = bodies.filter(body => body.name !== 'p');
+    updateSkyDomeColor(stars, planetP);
+    updateGroundBrightness();
+    
     // 渲染3D场景
     renderFirstPersonScene();
     
@@ -2139,6 +2119,75 @@ function updateStarsInFirstPersonView(planetP) {
     updateGroundBrightness();
 }
 
+// 计算总亮度的函数（不依赖UI更新）
+function calculateTotalBrightness() {
+    const planetP = bodies.find(body => body.name === 'p');
+    const celestialBodies = bodies.filter(body => body.name !== 'p');
+    
+    if (!planetP || celestialBodies.length === 0) {
+        currentTotalBrightness = 0;
+        return;
+    }
+    
+    let totalBrightness = 0;
+    let starCount = 0;
+    
+    celestialBodies.forEach((body) => {
+        // 计算天体到行星的距离
+        const dx = body.x - planetP.x;
+        const dy = body.y - planetP.y;
+        const dz = body.z - planetP.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        // 计算恒星高度角
+        const starScreenX = body.screenX || 0;
+        const starScreenY = body.screenY || 0;
+        const starScreenZ = body.screenZ || 0;
+        
+        const observerY = starScreenY;
+        const observerHorizontalDistance = Math.sqrt(starScreenX * starScreenX + starScreenZ * starScreenZ);
+        
+        let heightAngle = 0;
+        if (observerHorizontalDistance > 0) {
+            heightAngle = Math.atan(observerY / observerHorizontalDistance) * (180 / Math.PI);
+        } else if (observerY > 0) {
+            heightAngle = 90;
+        } else if (observerY < 0) {
+            heightAngle = -90;
+        }
+        
+        // 判断恒星状态
+        let starStatus = '';
+        if (heightAngle >= 10 && heightAngle <= 90) {
+            starStatus = '升起';
+        } else if (heightAngle >= -90 && heightAngle <= -10) {
+            starStatus = '落下';
+        } else if (heightAngle > -10 && heightAngle < 10) {
+            starStatus = '日出';
+        }
+        
+        // 计算亮度
+        const massFactor = Math.min(body.mass / 10, 1);
+        const distanceFactor = Math.min(100 / distance, 1);
+        let brightness = massFactor * distanceFactor * 100;
+        
+        // 根据恒星状态调整亮度
+        if (starStatus === '落下') {
+            brightness = brightness * 0;
+        } else if (starStatus === '日出' || starStatus === '日落') {
+            const transitionFactor = (heightAngle + 10) / 20;
+            brightness = brightness * transitionFactor;
+        }
+        
+        brightness = Math.max(0, Math.min(100, brightness));
+        totalBrightness += brightness;
+        starCount++;
+    });
+    
+    const averageBrightness = starCount > 0 ? totalBrightness / starCount : 0;
+    currentTotalBrightness = averageBrightness;
+}
+
 // 更新地面亮度
 function updateGroundBrightness() {
     if (!ground) return;
@@ -2235,7 +2284,7 @@ function renderFirstPersonScene() {
     firstPersonCamera.rotation.x = -verticalAngle;
     
     // 应用自定义旋转：使天穹和恒星围绕观察者初始视线方向旋转
-    // 修改旋转轴为平行于地面（X轴）
+    // 旋转轴为平行于地面（X轴）
     if (skyDome) {
         // 使用我们自己的旋转角度而不是行星自转
         skyDome.rotation.x = skyRotation;
@@ -2765,7 +2814,7 @@ function toggleFirstPersonView() {
         btn.classList.add('active');
         btn.textContent = '旁观视角';
         
-        // 修改操作说明按钮为恒星信息按钮
+        // 替换操作说明按钮为恒星信息按钮
         infoBtn.title = '恒星信息';
         infoBtn.innerHTML = '⭐';
         
@@ -2793,24 +2842,16 @@ function toggleFirstPersonView() {
         btn.classList.remove('active');
         btn.textContent = '第一视角';
         
+        // 停止实时更新恒星信息
+        isShowingStarInfo = false;
+        
         // 恢复操作说明按钮
         infoBtn.title = '操作说明';
         infoBtn.innerHTML = '📋';
         
-        // 恢复UI元素
-        infoPanel.style.display = 'block';
-        infoContent.style.display = 'block';
-        // 恢复操作说明内容
-        infoContent.innerHTML = `
-            <h4>操作说明</h4>
-            <p>单指拖拽: 旋转视角</p>
-            <p>双指缩放: 缩放</p>
-            <p>双击天体: 聚焦到该天体</p>
-            <p>单击天体: 查看天体信息</p>
-            <div id="body-count">天体数量: ${bodies.length}</div>
-            <div id="time-info">时间: ${time.toFixed(2)}</div>
-            <div id="temperature-info">行星P表面温度: ${calculatePlanetPTemperature()} °C</div>
-        `;
+        // 隐藏信息面板，确保不会自动显示
+        infoPanel.style.display = 'none';
+        infoContent.style.display = 'none';
         
         // 恢复控制面板显示
         document.getElementById('controls-container').style.display = 'block';
@@ -2828,7 +2869,6 @@ function toggleFirstPersonView() {
 }
 
 // 显示文明历史
-// 修改 showCivilizationHistory 函数
 function showCivilizationHistory() {
     const modal = document.getElementById('civilization-history-modal');
     const tableBody = document.getElementById('civilization-history-body');
@@ -2885,7 +2925,6 @@ function closeCivilizationHistory() {
 let isShowingStarInfo = false;
 
 // 主动画循环
-// 修改主动画循环函数
 function animate() {
     updateBodiesPosition();
     console.log('animate函数调用drawBodies，isFirstPersonView状态:', isFirstPersonView);
@@ -3524,12 +3563,17 @@ document.getElementById('toggle-info').addEventListener('click', function () {
         const button = this;
         
         if (content.style.display === 'none' || content.style.display === '') {
-            showStarInfo();
+            // 只有在用户主动点击时才显示恒星信息
+            if (!isShowingStarInfo) {
+                showStarInfo();
+            }
         } else {
             content.style.display = 'none';
             button.innerHTML = '⭐'; // 第一视角模式下关闭时显示星星图标
             // 停止实时更新恒星信息
             isShowingStarInfo = false;
+            // 隐藏整个信息面板
+            infoPanel.style.display = 'none';
         }
     } else {
         // 普通模式下显示操作说明
