@@ -198,6 +198,8 @@ let selectedBody = null; // 用于跟踪选中的天体
 let lastTemperatureMessage = ""; // 用于跟踪上次显示的温度消息
 let isFirstPersonView = false; // 是否处于第一视角模式
 let firstPersonRotation = 0; // 第一视角下的水平旋转角度
+let currentTotalBrightness = 0; // 当前总亮度值，用于地面和天空颜色计算
+let previousStarHeights = {}; // 存储上一次的恒星高度角，用于判断变化趋势
 let verticalAngle = 0; // 垂直视角角度
 
 // 文明历史相关变量
@@ -383,6 +385,9 @@ function initBodies() {
         trails[body.name] = [];
     }
     updateUI();
+    
+    // 更新第一视角按钮状态
+    updateFirstPersonButtonState();
 }
 
 // 保存当前天体状态作为初始状态
@@ -647,6 +652,9 @@ function randomizeBodies() {
     if (isFirstPersonView && isShowingStarInfo) {
         showStarInfo();
     }
+    
+    // 更新第一视角按钮状态
+    updateFirstPersonButtonState();
 }
 function resetSimulation() {
     time = 0; // 确保时间重置为0
@@ -692,6 +700,9 @@ function resetSimulation() {
     
     // 更新UI中的时间显示
     document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
+    
+    // 更新第一视角按钮状态
+    updateFirstPersonButtonState();
 }
 // 计算两个天体之间的引力
 function calculateGravity(body1, body2) {
@@ -752,7 +763,7 @@ function checkCollisions() {
                     // 检查是否是行星P被吞噬且处于第一视角模式
                     if ((body1.name === 'p' || body2.name === 'p') && isFirstPersonView) {
                         showPlanetDestroyedMessage();
-                        toggleFirstPersonView(); // 退出第一视角模式
+                        // toggleFirstPersonView(); // 退出第一视角模式 - 已取消自动回到旁观视角功能
                     }
                 } else {
                     showCollisionMessage(message);
@@ -846,6 +857,9 @@ function checkCollisions() {
             showStarInfo();
         }, 50); // 短暂延迟确保DOM更新完成
     }
+    
+    // 更新第一视角按钮状态
+    updateFirstPersonButtonState();
 }
 // 显示碰撞消息
 function showCollisionMessage(message) {
@@ -1703,23 +1717,81 @@ let labelContainer;
 
 // 初始化第一视角3D场景
 function initFirstPersonScene() {
+    console.log('开始初始化第一视角场景...');
+    
+    // 检查Three.js是否可用
+    if (typeof THREE === 'undefined') {
+        console.error('Three.js库未加载！');
+        alert('Three.js库未正确加载，请检查网络连接');
+        return;
+    }
+    
+    // 检查canvas和parentElement
+    if (!canvas) {
+        console.error('Canvas元素不存在！');
+        return;
+    }
+    
+    if (!canvas.parentElement) {
+        console.error('Canvas的父元素不存在！');
+        return;
+    }
+    
+    console.log('Canvas和父元素检查通过');
+    
     // 创建场景
     firstPersonScene = new THREE.Scene();
+    console.log('Three.js场景创建成功');
     
     // 获取当前画布尺寸（考虑横屏模式）
     const currentWidth = canvas.width;
     const currentHeight = canvas.height;
+    console.log(`画布尺寸: ${currentWidth}x${currentHeight}`);
     
     // 创建相机 - 使用正确的宽高比
     firstPersonCamera = new THREE.PerspectiveCamera(75, currentWidth / currentHeight, 0.1, 1000);
+    console.log('相机创建成功');
     
     // 创建渲染器 - 启用抗锯齿
-    firstPersonRenderer = new THREE.WebGLRenderer({ 
-        alpha: true,
-        antialias: true // 启用渲染器级别的抗锯齿
-    });
+    try {
+        firstPersonRenderer = new THREE.WebGLRenderer({ 
+            alpha: true,
+            antialias: true // 启用渲染器级别的抗锯齿
+        });
+        console.log('渲染器创建成功');
+    } catch (error) {
+        console.error('渲染器创建失败:', error);
+        alert('WebGL渲染器创建失败，您的浏览器可能不支持WebGL');
+        return;
+    }
+    
     firstPersonRenderer.setSize(currentWidth, currentHeight);
     firstPersonRenderer.setClearColor(0x000000, 0); // 透明背景
+    console.log('渲染器尺寸设置完成');
+    
+    // 检查渲染器的DOM元素
+    if (!firstPersonRenderer.domElement) {
+        console.error('渲染器DOM元素不存在！');
+        return;
+    }
+    
+    // 将渲染器的DOM元素添加到页面中
+    firstPersonRenderer.domElement.style.position = 'absolute';
+    firstPersonRenderer.domElement.style.top = '0';
+    firstPersonRenderer.domElement.style.left = '0';
+    firstPersonRenderer.domElement.style.width = '100%';
+    firstPersonRenderer.domElement.style.height = '100%';
+    firstPersonRenderer.domElement.style.zIndex = '1';
+    firstPersonRenderer.domElement.style.pointerEvents = 'none';
+    
+    try {
+        canvas.parentElement.appendChild(firstPersonRenderer.domElement);
+        console.log('Three.js渲染器DOM元素添加成功');
+        console.log('渲染器DOM元素尺寸:', firstPersonRenderer.domElement.width, 'x', firstPersonRenderer.domElement.height);
+    } catch (error) {
+        console.error('添加渲染器DOM元素失败:', error);
+        return;
+    }
     
     // 创建文本标注容器
 labelContainer = document.createElement('div');
@@ -2071,15 +2143,27 @@ function updateStarsInFirstPersonView(planetP) {
 function updateGroundBrightness() {
     if (!ground) return;
     
-    // 固定为最亮状态
-    const brightColor = new THREE.Color(0xC0C0C0); // 最亮的浅灰色
-    ground.material.color = brightColor;
+    // 根据总亮度计算地面颜色（深灰色到浅灰色）
+    const normalizedBrightness = Math.max(0, Math.min(1, currentTotalBrightness / 60)); // 0-60映射到0-1
+    
+    // 深灰色（最暗）
+    const darkR = 64, darkG = 64, darkB = 64; // #404040
+    // 浅灰色（最亮）
+    const brightR = 200, brightG = 200, brightB = 200; // #C8C8C8
+    
+    // 使用线性插值计算最终颜色
+    const finalR = darkR + (brightR - darkR) * normalizedBrightness;
+    const finalG = darkG + (brightG - darkG) * normalizedBrightness;
+    const finalB = darkB + (brightB - darkB) * normalizedBrightness;
+    
+    const groundColor = new THREE.Color(finalR/255, finalG/255, finalB/255);
+    ground.material.color = groundColor;
     
     // 更新格子线框颜色 - 始终比地面颜色亮
     const gridHelper = firstPersonScene.children.find(child => child instanceof THREE.GridHelper);
     if (gridHelper) {
         // 基于地面颜色计算网格线颜色，始终比地面亮
-        const gridColor = brightColor.clone();
+        const gridColor = groundColor.clone();
         gridColor.multiplyScalar(1.5); // 将地面颜色亮度增加50%
         // 确保颜色值在有效范围内
         gridColor.r = Math.min(1, gridColor.r);
@@ -2093,14 +2177,26 @@ function updateGroundBrightness() {
 function updateSkyDomeColor(stars, planetP) {
     if (!skyDome) return;
     
-    // 固定为最亮状态 - 浅天蓝色
-    const skyColor = new THREE.Color(0x87CEEB); // 浅天蓝色
+    // 根据总亮度计算天空颜色（深普蓝到浅蓝）
+    const normalizedBrightness = Math.max(0, Math.min(1, currentTotalBrightness / 60)); // 0-60映射到0-1
+    
+    // 深普蓝（最暗）
+    const darkR = 25, darkG = 25, darkB = 112; // #191970
+    // 浅蓝（最亮）
+    const brightR = 135, brightG = 206, brightB = 235; // #87CEEB
+    
+    // 使用线性插值计算最终颜色
+    const finalR = darkR + (brightR - darkR) * normalizedBrightness;
+    const finalG = darkG + (brightG - darkG) * normalizedBrightness;
+    const finalB = darkB + (brightB - darkB) * normalizedBrightness;
+    
+    const skyColor = new THREE.Color(finalR/255, finalG/255, finalB/255);
     
     // 更新天穹颜色
     skyDome.material.color = skyColor;
     
-    // 固定为最亮状态的透明度
-    const opacity = 0.95;
+    // 根据亮度调整透明度（亮度越低，天空越透明）
+    const opacity = 0.5 + normalizedBrightness * 0.45; // 从0.5到0.95
     skyDome.material.opacity = opacity;
 }
 
@@ -2309,14 +2405,15 @@ function drawGround(brightness = 0) {
         uniformGroundBrightness = Math.max(0, Math.min(1, normalizedHeight));
     });
     
-    // 根据太阳高度计算地面颜色
+    // 根据总亮度计算地面颜色
+    const normalizedBrightness = Math.max(0, Math.min(1, currentTotalBrightness / 60)); // 0-60映射到0-1
     const baseR = 64, baseG = 64, baseB = 64; // 深灰色 #404040
     const brightR = 200, brightG = 200, brightB = 200; // 明亮的浅灰色
     
     // 使用线性插值计算最终颜色
-    const finalR = Math.floor(baseR + (brightR - baseR) * uniformGroundBrightness);
-    const finalG = Math.floor(baseG + (brightG - baseG) * uniformGroundBrightness);
-    const finalB = Math.floor(baseB + (brightB - baseB) * uniformGroundBrightness);
+    const finalR = Math.floor(baseR + (brightR - baseR) * normalizedBrightness);
+    const finalG = Math.floor(baseG + (brightG - baseG) * normalizedBrightness);
+    const finalB = Math.floor(baseB + (brightB - baseB) * normalizedBrightness);
     
     // 更新Three.js地面材质颜色
     if (groundTerrain) {
@@ -2326,7 +2423,7 @@ function drawGround(brightness = 0) {
     // 更新碎石颜色
     debrisStones.forEach(stone => {
         const stoneGray = Math.floor(Math.random() * 60 + 80);
-        const adjustedGray = Math.floor(stoneGray * (0.5 + uniformGroundBrightness * 0.5));
+        const adjustedGray = Math.floor(stoneGray * (0.5 + normalizedBrightness * 0.5));
         stone.material.color.setRGB(adjustedGray/255, adjustedGray/255, adjustedGray/255);
     });
     
@@ -2421,21 +2518,31 @@ function drawCompassDirections(r, g, b) {
 
 // 绘制天穹
 function drawSkyDome() {
-    // 固定为最亮状态 - 浅天蓝色
-    const uniformSkyBrightness = 1;
+    // 根据总亮度计算天空颜色（深普蓝到浅蓝）
+    const normalizedBrightness = Math.max(0, Math.min(1, currentTotalBrightness / 60)); // 0-60映射到0-1
     
-    // 最亮状态的天空颜色 - 浅天蓝色
-    const baseR = 135;
-    const baseG = 206;
-    const baseB = 235;
+    // 深普蓝（最暗）
+    const darkR = 25;
+    const darkG = 25;
+    const darkB = 112;
     
-    const midR = 120;
-    const midG = 180;
-    const midB = 190;
+    // 浅蓝（最亮）
+    const brightR = 135;
+    const brightG = 206;
+    const brightB = 235;
     
-    const horizonR = 100;
-    const horizonG = 150;
-    const horizonB = 170;
+    // 使用线性插值计算当前亮度的颜色
+    const baseR = Math.floor(darkR + (brightR - darkR) * normalizedBrightness);
+    const baseG = Math.floor(darkG + (brightG - darkG) * normalizedBrightness);
+    const baseB = Math.floor(darkB + (brightB - darkB) * normalizedBrightness);
+    
+    const midR = Math.floor(darkR + (brightR - darkR - 15) * normalizedBrightness);
+    const midG = Math.floor(darkG + (brightG - darkG - 26) * normalizedBrightness);
+    const midB = Math.floor(darkB + (brightB - darkB - 45) * normalizedBrightness);
+    
+    const horizonR = Math.floor(darkR + (brightR - darkR - 35) * normalizedBrightness);
+    const horizonG = Math.floor(darkG + (brightG - darkG - 56) * normalizedBrightness);
+    const horizonB = Math.floor(darkB + (brightB - darkB - 65) * normalizedBrightness);
     
     // 绘制天空渐变（使用线性亮度变化）
     const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.6);
@@ -2448,8 +2555,8 @@ function drawSkyDome() {
     ctx.fillStyle = skyGradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height * 0.6);
     
-    // 绘制星星背景（固定为最暗状态，使星星更明显）
-    const starBrightness = 0.1;
+    // 绘制星星背景（根据总亮度调整星星可见性）
+    const starBrightness = Math.max(0.05, 1 - normalizedBrightness); // 总亮度越高，星星越暗
     drawStars(starBrightness);
 }
 
@@ -2670,6 +2777,16 @@ function toggleFirstPersonView() {
         document.getElementById('body-info').style.display = 'none';
         // 确保控制面板在第一视角模式下仍然可见
         document.getElementById('controls-container').style.display = 'block';
+        
+        // 显示第一视角渲染器DOM元素
+        if (firstPersonRenderer && firstPersonRenderer.domElement) {
+            firstPersonRenderer.domElement.style.display = 'block';
+        }
+        
+        // 显示文本标注容器
+        if (labelContainer) {
+            labelContainer.style.display = 'block';
+        }
     } else {
         // 退出第一视角模式
         document.body.classList.remove('first-person-mode');
@@ -2697,6 +2814,16 @@ function toggleFirstPersonView() {
         
         // 恢复控制面板显示
         document.getElementById('controls-container').style.display = 'block';
+        
+        // 隐藏第一视角渲染器DOM元素，防止与旁观视角重叠
+        if (firstPersonRenderer && firstPersonRenderer.domElement) {
+            firstPersonRenderer.domElement.style.display = 'none';
+        }
+        
+        // 隐藏文本标注容器
+        if (labelContainer) {
+            labelContainer.style.display = 'none';
+        }
     }
 }
 
@@ -2771,6 +2898,9 @@ function animate() {
     // 更新行星P表面温度
     const temperature = calculatePlanetPTemperature();
     document.getElementById('temperature-info').textContent = `行星P表面温度: ${temperature} °C`;
+    
+    // 更新第一视角按钮状态
+    updateFirstPersonButtonState();
 
     // 如果正在显示恒星信息，则实时更新（不限制视角模式）
     if (isShowingStarInfo) {
@@ -3104,9 +3234,40 @@ optimizeForMobile();
 
 
 
+// 检查行星P是否存在并更新第一视角按钮状态
+function updateFirstPersonButtonState() {
+    const firstPersonBtn = document.getElementById('first-person-btn');
+    const planetP = bodies.find(body => body.name === 'p');
+    
+    if (planetP) {
+        // 行星P存在，启用按钮
+        firstPersonBtn.disabled = false;
+        firstPersonBtn.style.opacity = '1';
+        firstPersonBtn.style.cursor = 'pointer';
+        firstPersonBtn.title = '第一视角';
+    } else {
+        // 行星P不存在，禁用按钮
+        firstPersonBtn.disabled = true;
+        firstPersonBtn.style.opacity = '0.5';
+        firstPersonBtn.style.cursor = 'not-allowed';
+        firstPersonBtn.title = '行星P已毁灭，无法使用第一视角';
+        
+        // 如果当前处于第一视角模式，自动退出
+        if (isFirstPersonView) {
+            toggleFirstPersonView();
+        }
+    }
+}
+
 // 第一视角按钮事件监听器
 document.getElementById('first-person-btn').addEventListener('click', () => {
-    toggleFirstPersonView();
+    // 再次检查行星P是否存在，防止状态变化
+    const planetP = bodies.find(body => body.name === 'p');
+    if (planetP) {
+        toggleFirstPersonView();
+    } else {
+        updateFirstPersonButtonState(); // 更新按钮状态
+    }
 });
 
 // 控制面板展开/收起
@@ -3175,24 +3336,27 @@ function showStarInfo() {
         const planetP = bodies.find(body => body.name === 'p');
         
         if (celestialBodies.length === 0) {
-            content.innerHTML = '<h4>天体信息</h4><p>无法获取天体数据</p>';
+            content.innerHTML = '<h4>恒星信息</h4><p>无法获取恒星数据</p>';
         } else {
-            let celestialBodiesHTML = '<h4>天体信息</h4>';
+            let celestialBodiesHTML = '<h4>恒星信息</h4>';
             
             celestialBodies.forEach((body, index) => {
                 // 获取光谱类型信息
                 const spectralType = getSpectralType(body.mass);
                 
                 // 为每个天体创建带ID的元素，便于实时更新
+                const starColor = getSpectralColor(body.mass);
                 celestialBodiesHTML += `
                     <div style="margin-bottom: 10px; padding: 8px; background: rgba(0, 204, 255, 0.1); border-radius: 4px;">
-                        <strong>天体 ${body.name}</strong>
-                        <span style="margin-left: 8px; font-size: 12px; color: ${spectralType.color};">(${spectralType.name}型)</span>
-                        <span style="display: inline-block; width: 12px; height: 12px; background-color: ${spectralType.color}; border-radius: 50%; margin-left: 4px; vertical-align: middle; border: 1px solid rgba(255, 255, 255, 0.3);"></span>
+                        <strong>恒星 ${body.name}</strong>
+                        <span style="margin-left: 8px; font-size: 12px; color: ${starColor};">(${spectralType.name}型)</span>
+                        <span style="display: inline-block; width: 12px; height: 12px; background-color: ${starColor}; border-radius: 50%; margin-left: 4px; vertical-align: middle; border: 1px solid rgba(255, 255, 255, 0.3);"></span>
                         <div style="font-size: 12px; margin-top: 4px;">
                             距离: <span id="star-${body.name}-distance">计算中...</span> 单位<br>
                             高度角: <span id="star-${body.name}-height">计算中...</span>°<br>
-                            表面温度: <span id="star-${body.name}-temperature">计算中...</span> °C
+                            表面温度: <span id="star-${body.name}-temperature">计算中...</span> °C<br>
+                            当前为<span id="star-${body.name}-status">计算中...</span>状态<br>
+                            亮度: <span id="star-${body.name}-brightness">计算中...</span>
                         </div>
                     </div>
                 `;
@@ -3204,6 +3368,7 @@ function showStarInfo() {
             <div id="body-count">天体数量: ${bodies.length}</div>
             <div id="time-info">时间: ${time.toFixed(2)}</div>
             <div id="temperature-info">行星P表面温度: ${temperature} °C</div>
+            <div id="total-brightness">总亮度: <span id="total-brightness-value">计算中...</span></div>
         `;
         
         content.innerHTML = celestialBodiesHTML;
@@ -3236,6 +3401,10 @@ function updateStarInfo() {
     if (!referencePoint || celestialBodies.length === 0) {
         return;
     }
+    
+    // 计算总亮度的变量
+    let totalBrightness = 0;
+    let starCount = 0;
     
     celestialBodies.forEach((body) => {
         // 计算天体到行星的距离
@@ -3271,20 +3440,79 @@ function updateStarInfo() {
         // 计算恒星表面温度
         const starTemperature = calculateStarTemperature(body);
         
+        // 判断恒星状态
+        let starStatus = '';
+        const previousHeight = previousStarHeights[body.name] || heightAngle;
+        
+        if (heightAngle >= 10 && heightAngle <= 90) {
+            starStatus = '升起';
+        } else if (heightAngle >= -90 && heightAngle <= -10) {
+            starStatus = '落下';
+        } else if (heightAngle > -10 && heightAngle < 10) {
+            if (heightAngle > previousHeight) {
+                starStatus = '日出';
+            } else {
+                starStatus = '日落';
+            }
+        }
+        
+        // 计算亮度基础值（0-100，与质量成正比，与距离成反比）
+        // 假设质量范围在0.1-10之间，距离范围在1-1000之间
+        const massFactor = Math.min(body.mass / 10, 1); // 质量因子，最大为1
+        const distanceFactor = Math.min(100 / distance, 1); // 距离因子，最大为1
+        let brightness = massFactor * distanceFactor * 100; // 基础亮度值
+        
+        // 根据恒星状态调整亮度
+        if (starStatus === '升起') {
+            brightness = brightness * 1; // 起起状态保持原值
+        } else if (starStatus === '落下') {
+            brightness = brightness * 0; // 落下状态为0
+        } else if (starStatus === '日出' || starStatus === '日落') {
+            // 日出/日落状态：亮度从0到基础值线性变化，基于高度角(-10到10度)
+            const transitionFactor = (heightAngle + 10) / 20; // 将-10到10映射到0到1
+            brightness = brightness * transitionFactor; // 日出/日落状态
+        }
+        
+        // 确保亮度在0-100范围内
+        brightness = Math.max(0, Math.min(100, brightness));
+        
+        // 累加到总亮度
+        totalBrightness += brightness;
+        starCount++;
+        
+        // 更新上一次的高度角
+        previousStarHeights[body.name] = heightAngle;
+        
         // 更新DOM元素（添加错误处理）
         try {
             const distanceElement = document.getElementById(`star-${body.name}-distance`);
             const heightElement = document.getElementById(`star-${body.name}-height`);
             const temperatureElement = document.getElementById(`star-${body.name}-temperature`);
+            const statusElement = document.getElementById(`star-${body.name}-status`);
+            const brightnessElement = document.getElementById(`star-${body.name}-brightness`);
             
             if (distanceElement) distanceElement.textContent = distance.toFixed(2);
             if (heightElement) heightElement.textContent = heightAngle.toFixed(2);
             if (temperatureElement) temperatureElement.textContent = starTemperature;
+            if (statusElement) statusElement.textContent = starStatus;
+            if (brightnessElement) brightnessElement.textContent = brightness.toFixed(1);
         } catch (error) {
             console.warn(`更新天体 ${body.name} 信息时出错:`, error);
             // 继续处理其他天体，不因单个天体更新失败而中断
         }
     });
+    
+    // 计算并更新总亮度（所有恒星亮度之和除以总恒星数）
+    const averageBrightness = starCount > 0 ? totalBrightness / starCount : 0;
+    currentTotalBrightness = averageBrightness; // 更新全局总亮度变量
+    try {
+        const totalBrightnessElement = document.getElementById('total-brightness-value');
+        if (totalBrightnessElement) {
+            totalBrightnessElement.textContent = averageBrightness.toFixed(1);
+        }
+    } catch (error) {
+        console.warn('更新总亮度时出错:', error);
+    }
 }
 
 // 操作指南展开/收起
@@ -3527,6 +3755,9 @@ rotationY = Math.PI / 4; // 45度
 // 默认展开控制面板
 document.getElementById('controls-content').style.display = 'block';
 document.getElementById('toggle-controls').textContent = '▼';
+
+// 初始化第一视角按钮状态
+updateFirstPersonButtonState();
 
 animate();
 showQuote(); // 启动名句轮播
