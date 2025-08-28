@@ -901,24 +901,112 @@ function showTemperatureMessage(message) {
 
     lastTemperatureMessage = message;
 
-    // 定义不同温度情况下的多种描述
-    const coldMessages = [
-        `第${civilizationId}号文明在无尽的凛冬下毁灭了`,
-    ];
+    // 获取所有恒星信息
+    const celestialBodies = bodies.filter(body => body.name !== 'p');
+    let flyingStarCount = 0;
+    let risingStarCount = 0;
+    let allBelowMinus10 = true;
 
-    const hotMessages = [
+    // 检查每颗恒星的状态
+    celestialBodies.forEach((body) => {
+        // 计算恒星到行星P的距离（如果存在）
+        const planetP = bodies.find(b => b.name === 'p');
+        let distance = 0;
+        let heightAngle = 0;
+        
+        if (planetP) {
+            const dx = body.x - planetP.x;
+            const dy = body.y - planetP.y;
+            const dz = body.z - planetP.z;
+            distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            
+            // 计算高度角（适用于所有视角模式）
+            // 这里我们使用行星P作为参考点，计算恒星相对于行星P表面的高度角
+            // 假设行星P的表面是一个平面，Y轴为垂直方向
+            const observerY = dy; // 恒星相对于行星P的Y轴位置
+            const observerHorizontalDistance = Math.sqrt(dx * dx + dz * dz); // 水平距离
+            
+            if (observerHorizontalDistance > 0) {
+                heightAngle = Math.atan(observerY / observerHorizontalDistance) * (180 / Math.PI);
+            } else if (observerY > 0) {
+                heightAngle = 90; // 正上方
+            } else if (observerY < 0) {
+                heightAngle = -90; // 正下方
+            }
+        }
+        
+        // 判断飞星
+        if (distance > 900) {
+            flyingStarCount++;
+        }
+        
+        // 判断升起状态（高度角>=10）
+        if (heightAngle >= 10) {
+            risingStarCount++;
+        }
+        
+        // 检查是否所有恒星高度角都小于-10
+        if (heightAngle >= -10) {
+            allBelowMinus10 = false;
+        }
+    });
 
-        `第${civilizationId}号文明在阳光的烈焰下毁灭了`,
-    ];
+    // 定义不同恒星状态下的多种毁灭描述
+    const highTemperatureMessages = {
+        threeStars: [
+            `第${civilizationId}号文明在三日凌空的烈焰中毁灭了`
+        ],
+        twoStars: [
+            `第${civilizationId}号文明在双日凌空的烈焰中毁灭了`
+        ],
+        oneStar: [
+            `第${civilizationId}号文明在一轮巨日下毁灭了`
+        ],
+        default: [
+            `第${civilizationId}号文明在阳光的烈焰下毁灭了`
+        ]
+    };
 
-    // 根据消息内容选择合适的描述集合
+    const lowTemperatureMessages = {
+        threeFlyingStars: [
+            `第${civilizationId}号文明在三颗飞星的永恒寒夜中毁灭了`
+        ],
+        allBelowHorizon: [
+            `第${civilizationId}号文明的太阳落下后再也没有升起`
+        ],
+        default: [
+            `第${civilizationId}号文明被冻结在了无尽的凛冬中`
+        ]
+    };
+
+    // 根据恒星状态选择合适的消息集合并随机选择一条消息
     let finalMessage;
     if (message.includes("在阳光的烈焰下毁灭了")) {
-        // 高温情况，随机选择一种描述
-        finalMessage = hotMessages[Math.floor(Math.random() * hotMessages.length)];
+        // 高温情况
+        let messageList;
+        if (risingStarCount === 3) {
+            messageList = highTemperatureMessages.threeStars;
+        } else if (risingStarCount === 2) {
+            messageList = highTemperatureMessages.twoStars;
+        } else if (risingStarCount === 1) {
+            messageList = highTemperatureMessages.oneStar;
+        } else {
+            messageList = highTemperatureMessages.default;
+        }
+        // 随机选择一条消息
+        finalMessage = messageList[Math.floor(Math.random() * messageList.length)];
     } else if (message.includes("在无尽的凛冬下毁灭了")) {
-        // 低温情况，随机选择一种描述
-        finalMessage = coldMessages[Math.floor(Math.random() * coldMessages.length)];
+        // 低温情况
+        let messageList;
+        if (flyingStarCount === 3) {
+            messageList = lowTemperatureMessages.threeFlyingStars;
+        } else if (allBelowMinus10) {
+            messageList = lowTemperatureMessages.allBelowHorizon;
+        } else {
+            messageList = lowTemperatureMessages.default;
+        }
+        // 随机选择一条消息
+        finalMessage = messageList[Math.floor(Math.random() * messageList.length)];
     } else {
         // 其他情况，使用原始消息
         finalMessage = `第${civilizationId}号文明${message}`;
@@ -3008,14 +3096,25 @@ function showCivilizationHistory() {
 
             civilizations.forEach(entry => {
                 // 根据灭亡消息内容判断是高温还是低温毁灭
-                let destructionType = entry.destruction;
-                if (entry.destruction.includes("烈焰")) {
+                let destructionType = "在低温下毁灭"; // 默认低温毁灭
+                
+                // 高温毁灭的关键词
+                if (entry.destruction.includes("烈焰") || 
+                    entry.destruction.includes("高温") || 
+                    entry.destruction.includes("巨日") || 
+                    entry.destruction.includes("三日凌空") || 
+                    entry.destruction.includes("双日凌空") || 
+                    entry.destruction.includes("飞星不动") || 
+                    entry.destruction.includes("吞噬") || 
+                    entry.destruction.includes("烈日")) {
                     destructionType = "在高温下毁灭";
-                } else if (entry.destruction.includes("凛冬")) {
-                    destructionType = "在低温下毁灭";
-                } else if (entry.destruction.includes("星际")) {
+                } 
+                // 星际探索特殊情况保留
+                else if (entry.destruction.includes("星际") || 
+                         entry.destruction.includes("家园")) {
                     destructionType = "飞向了新家园";
                 }
+                // 其他情况默认为低温毁灭
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -3486,63 +3585,127 @@ if(document.getElementById('toggle-body-info')) {
 }
 // 显示恒星信息窗口（第一视角模式下使用）
 function showStarInfo() {
-    const infoPanel = document.getElementById('info');
-    const content = document.getElementById('info-content');
-    const button = document.getElementById('toggle-info');
-    
-    // 设置恒星信息显示状态
-    isShowingStarInfo = true;
-    
-    // 获取所有非行星P的天体
-        const celestialBodies = bodies.filter(body => body.name !== 'p');
-        const planetP = bodies.find(body => body.name === 'p');
+    try {
+        const infoPanel = document.getElementById('info');
+        const content = document.getElementById('info-content');
+        const button = document.getElementById('toggle-info');
         
-        if (celestialBodies.length === 0) {
-            content.innerHTML = '<h4>恒星信息</h4><p>无法获取恒星数据</p>';
-        } else {
-            let celestialBodiesHTML = '<h4>恒星信息</h4>';
+        if (!infoPanel || !content || !button) {
+            console.warn('无法找到恒星信息面板元素');
+            return;
+        }
+        
+        // 设置恒星信息显示状态
+        isShowingStarInfo = true;
+        
+        try {
+            // 获取所有非行星P的天体
+            const celestialBodies = bodies.filter(body => body.name !== 'p');
+            const planetP = bodies.find(body => body.name === 'p');
             
-            celestialBodies.forEach((body, index) => {
-                // 获取光谱类型信息
-                const spectralType = getSpectralType(body.mass);
+            if (celestialBodies.length === 0) {
+                content.innerHTML = '<h4>恒星信息</h4><p>无法获取恒星数据</p>';
+            } else {
+                let celestialBodiesHTML = '<h4>恒星信息</h4>';
                 
-                // 为每个天体创建带ID的元素，便于实时更新
-                const starColor = getSpectralColor(body.mass);
+                celestialBodies.forEach((body, index) => {
+                    try {
+                        // 获取光谱类型信息
+                        let spectralType = { name: '未知' };
+                        let starColor = '#ffffff'; // 默认颜色
+                        
+                        if (body && typeof body.mass !== 'undefined') {
+                            try {
+                                spectralType = getSpectralType(body.mass) || { name: '未知' };
+                                starColor = getSpectralColor(body.mass) || '#ffffff';
+                            } catch (spectralError) {
+                                console.warn(`获取天体 ${body.name} 光谱类型时出错:`, spectralError);
+                            }
+                        }
+                        
+                        // 为每个天体创建带ID的元素，便于实时更新
+                        celestialBodiesHTML += `
+                            <div style="margin-bottom: 10px; padding: 8px; background: rgba(0, 204, 255, 0.1); border-radius: 4px;">
+                                <strong>恒星 ${body.name}</strong>
+                                <span style="margin-left: 8px; font-size: 12px; color: ${starColor};">(${spectralType.name}型)</span>
+                                <span style="display: inline-block; width: 12px; height: 12px; background-color: ${starColor}; border-radius: 50%; margin-left: 4px; vertical-align: middle; border: 1px solid rgba(255, 255, 255, 0.3);"></span>
+                                <div style="font-size: 12px; margin-top: 4px;">
+                                    距离: <span id="star-${body.name}-distance">计算中...</span> 单位<br>
+                                    高度角: <span id="star-${body.name}-height">计算中...</span>°<br>
+                                    表面温度: <span id="star-${body.name}-temperature">计算中...</span> °C<br>
+                                    当前为<span id="star-${body.name}-status">计算中...</span>状态<br>
+                                    亮度: <span id="star-${body.name}-brightness">计算中...</span>
+                                </div>
+                            </div>
+                        `;
+                    } catch (bodyError) {
+                        console.warn(`创建天体 ${body ? body.name : '未知'} 信息HTML时出错:`, bodyError);
+                        // 添加错误占位符，但继续处理其他天体
+                        celestialBodiesHTML += `
+                            <div style="margin-bottom: 10px; padding: 8px; background: rgba(255, 0, 0, 0.1); border-radius: 4px;">
+                                <strong>恒星信息加载错误</strong>
+                                <div style="font-size: 12px; margin-top: 4px;">无法显示此天体信息</div>
+                            </div>
+                        `;
+                    }
+                });
+                
+                // 添加动态信息区域，保持与操作说明相同的ID结构
+                let temperature = '--';
+                try {
+                    temperature = planetP ? calculatePlanetPTemperature() : '--';
+                } catch (tempError) {
+                    console.warn('计算行星P表面温度时出错:', tempError);
+                }
+                
+                let bodiesLength = 0;
+                let timeValue = 0;
+                try {
+                    bodiesLength = bodies.length || 0;
+                    timeValue = typeof time !== 'undefined' ? time.toFixed(2) : '0.00';
+                } catch (dataError) {
+                    console.warn('获取数据时出错:', dataError);
+                }
+                
                 celestialBodiesHTML += `
-                    <div style="margin-bottom: 10px; padding: 8px; background: rgba(0, 204, 255, 0.1); border-radius: 4px;">
-                        <strong>恒星 ${body.name}</strong>
-                        <span style="margin-left: 8px; font-size: 12px; color: ${starColor};">(${spectralType.name}型)</span>
-                        <span style="display: inline-block; width: 12px; height: 12px; background-color: ${starColor}; border-radius: 50%; margin-left: 4px; vertical-align: middle; border: 1px solid rgba(255, 255, 255, 0.3);"></span>
-                        <div style="font-size: 12px; margin-top: 4px;">
-                            距离: <span id="star-${body.name}-distance">计算中...</span> 单位<br>
-                            高度角: <span id="star-${body.name}-height">计算中...</span>°<br>
-                            表面温度: <span id="star-${body.name}-temperature">计算中...</span> °C<br>
-                            当前为<span id="star-${body.name}-status">计算中...</span>状态<br>
-                            亮度: <span id="star-${body.name}-brightness">计算中...</span>
-                        </div>
-                    </div>
+                    <div id="body-count">天体数量: ${bodiesLength}</div>
+                    <div id="time-info">时间: ${timeValue}</div>
+                    <div id="temperature-info">行星P表面温度: ${temperature} °C</div>
+                    <div id="total-brightness">总亮度: <span id="total-brightness-value">计算中...</span></div>
                 `;
-            });
+                
+                try {
+                    content.innerHTML = celestialBodiesHTML;
+                } catch (htmlError) {
+                    console.warn('设置HTML内容时出错:', htmlError);
+                    content.innerHTML = '<h4>恒星信息</h4><p>加载恒星信息时发生错误</p>';
+                }
+            }
+        } catch (dataError) {
+            console.error('处理恒星数据时发生错误:', dataError);
+            content.innerHTML = '<h4>恒星信息</h4><p>加载恒星数据时发生错误</p>';
+        }
         
-        // 添加动态信息区域，保持与操作说明相同的ID结构
-        const temperature = planetP ? calculatePlanetPTemperature() : '--';
-        celestialBodiesHTML += `
-            <div id="body-count">天体数量: ${bodies.length}</div>
-            <div id="time-info">时间: ${time.toFixed(2)}</div>
-            <div id="temperature-info">行星P表面温度: ${temperature} °C</div>
-            <div id="total-brightness">总亮度: <span id="total-brightness-value">计算中...</span></div>
-        `;
+        // 显示面板 - 使用!important确保覆盖内联样式
+        try {
+            infoPanel.style.setProperty('display', 'block', 'important');
+            content.style.display = 'block';
+            button.innerHTML = '✕';
+        } catch (styleError) {
+            console.warn('设置面板样式时出错:', styleError);
+        }
         
-        content.innerHTML = celestialBodiesHTML;
+        // 立即更新一次恒星信息
+        try {
+            updateStarInfo();
+        } catch (updateError) {
+            console.warn('立即更新恒星信息时出错:', updateError);
+        }
+    } catch (error) {
+        console.error('显示恒星信息窗口时发生严重错误:', error);
+        // 重置显示状态，防止持续报错
+        isShowingStarInfo = false;
     }
-    
-    // 显示面板 - 使用!important确保覆盖内联样式
-    infoPanel.style.setProperty('display', 'block', 'important');
-    content.style.display = 'block';
-    button.innerHTML = '✕';
-    
-    // 立即更新一次恒星信息
-    updateStarInfo();
 }
 
 // 实时更新恒星信息的函数
@@ -3568,124 +3731,141 @@ function updateStarInfo() {
     let totalBrightness = 0;
     let starCount = 0;
     
-    celestialBodies.forEach((body) => {
-        // 计算天体到行星的距离
-        const dx = body.x - referencePoint.x;
-        const dy = body.y - referencePoint.y;
-        const dz = body.z - referencePoint.z;
-        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        
-        // 计算恒星高度角（第一视角观察者看到的太阳位置与观察者连线与地面的夹角）
-        // 在第一视角中，观察者位于原点，地面为XZ平面，Y轴为垂直方向
-        // 恒星在观察者坐标系中的位置已经通过updateStarsInFirstPersonView计算
-        
-        // 获取恒星在观察者坐标系中的位置
-        const starScreenX = body.screenX || 0;
-        const starScreenY = body.screenY || 0;
-        const starScreenZ = body.screenZ || 0;
-        
-        // 计算高度角：观察者到恒星的向量与地面的夹角
-        // 使用观察者坐标系中的Y坐标（高度）和XZ平面距离（水平距离）
-        const observerY = starScreenY; // 观察者坐标系中的高度
-        const observerHorizontalDistance = Math.sqrt(starScreenX * starScreenX + starScreenZ * starScreenZ); // 水平距离
-        
-        // 计算高度角（arctan(高度/水平距离)）
-        let heightAngle = 0;
-        if (observerHorizontalDistance > 0) {
-            heightAngle = Math.atan(observerY / observerHorizontalDistance) * (180 / Math.PI);
-        } else if (observerY > 0) {
-            heightAngle = 90; // 正上方
-        } else if (observerY < 0) {
-            heightAngle = -90; // 正下方
-        }
-        
-        // 计算恒星表面温度
-        const starTemperature = calculateStarTemperature(body);
-        
-        // 判断恒星状态
-        let starStatus = '';
-        const previousHeight = previousStarHeights[body.name] || heightAngle;
-        
-        // 飞星判断逻辑：当恒星与行星距离大于900时成为飞星
-        let isFlyingStar = false;
-        if (distance > 900) {
-            isFlyingStar = true;
-            starStatus = '飞星';
-            // 修改恒星颜色为白色
-            body.color = '#ffffff';
-        } else {
-            // 恢复原来的恒星颜色
-            body.color = getSpectralColor(body.mass);
-            
-            if (heightAngle >= 10 && heightAngle <= 90) {
-                starStatus = '升起';
-            } else if (heightAngle >= -90 && heightAngle <= -10) {
-                starStatus = '落下';
-            } else if (heightAngle > -10 && heightAngle < 10) {
-                if (heightAngle > previousHeight) {
-                    starStatus = '日出';
-                } else {
-                    starStatus = '日落';
-                }
-            }
-        }
-        
-        // 计算亮度基础值（0-100，与质量成正比，与距离成反比）
-        // 假设质量范围在0.1-10之间，距离范围在1-1000之间
-        const massFactor = Math.min(body.mass / 10, 1); // 质量因子，最大为1
-        const distanceFactor = Math.min(100 / distance, 1); // 距离因子，最大为1
-        let brightness = massFactor * distanceFactor * 100; // 基础亮度值
-        
-        // 根据恒星状态调整亮度
-        if (starStatus === '升起') {
-            brightness = brightness * 1; // 起起状态保持原值
-        } else if (starStatus === '落下') {
-            brightness = brightness * 0; // 落下状态为0
-        } else if (starStatus === '日出' || starStatus === '日落') {
-            // 日出/日落状态：亮度从0到基础值线性变化，基于高度角(-10到10度)
-            const transitionFactor = (heightAngle + 10) / 20; // 将-10到10映射到0到1
-            brightness = brightness * transitionFactor; // 日出/日落状态
-        }
-        
-        // 确保亮度在0-100范围内
-        brightness = Math.max(0, Math.min(100, brightness));
-        
-        // 累加到总亮度
-        totalBrightness += brightness;
-        starCount++;
-        
-        // 更新上一次的高度角
-        previousStarHeights[body.name] = heightAngle;
-        
-        // 更新DOM元素（添加错误处理）
-        try {
-            const distanceElement = document.getElementById(`star-${body.name}-distance`);
-            const heightElement = document.getElementById(`star-${body.name}-height`);
-            const temperatureElement = document.getElementById(`star-${body.name}-temperature`);
-            const statusElement = document.getElementById(`star-${body.name}-status`);
-            const brightnessElement = document.getElementById(`star-${body.name}-brightness`);
-            
-            if (distanceElement) distanceElement.textContent = distance.toFixed(2);
-            if (heightElement) heightElement.textContent = heightAngle.toFixed(2);
-            if (temperatureElement) temperatureElement.textContent = starTemperature;
-            if (statusElement) statusElement.textContent = starStatus;
-            if (brightnessElement) brightnessElement.textContent = brightness.toFixed(1);
-        } catch (error) {
-            console.warn(`更新天体 ${body.name} 信息时出错:`, error);
-            // 继续处理其他天体，不因单个天体更新失败而中断
-        }
-    });
-    
-    // 计算并更新总亮度（所有恒星亮度之和除以总恒星数）
-    const averageBrightness = starCount > 0 ? totalBrightness / starCount : 0;
-    currentTotalBrightness = averageBrightness; // 更新全局总亮度变量
     try {
-        const totalBrightnessElement = document.getElementById('total-brightness-value');
-        if (totalBrightnessElement) {
-            totalBrightnessElement.textContent = averageBrightness.toFixed(1);
+        celestialBodies.forEach((body) => {
+            try {
+                // 计算天体到行星的距离
+                const dx = body.x - referencePoint.x;
+                const dy = body.y - referencePoint.y;
+                const dz = body.z - referencePoint.z;
+                const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                
+                // 计算恒星高度角
+                // 使用行星P为参考点计算高度角，不再依赖第一视角屏幕坐标
+                const observerY = dy; // 相对于参考点的Y坐标（高度）
+                const observerHorizontalDistance = Math.sqrt(dx * dx + dz * dz); // 水平距离
+                
+                // 计算高度角（arctan(高度/水平距离)）
+                let heightAngle = 0;
+                if (observerHorizontalDistance > 0) {
+                    heightAngle = Math.atan(observerY / observerHorizontalDistance) * (180 / Math.PI);
+                } else if (observerY > 0) {
+                    heightAngle = 90; // 正上方
+                } else if (observerY < 0) {
+                    heightAngle = -90; // 正下方
+                }
+                
+                // 计算恒星表面温度
+                const starTemperature = calculateStarTemperature(body);
+                
+                // 判断恒星状态
+                let starStatus = '';
+                // 初始化previousStarHeights对象，如果不存在
+                if (!previousStarHeights) {
+                    previousStarHeights = {};
+                }
+                const previousHeight = previousStarHeights[body.name] || heightAngle;
+                
+                // 飞星判断逻辑：当恒星与行星距离大于900时成为飞星
+                let isFlyingStar = false;
+                if (distance > 900) {
+                    isFlyingStar = true;
+                    starStatus = '飞星';
+                    // 修改恒星颜色为白色
+                    body.color = '#ffffff';
+                } else {
+                    // 恢复原来的恒星颜色
+                    body.color = getSpectralColor(body.mass);
+                    
+                    if (heightAngle >= 10 && heightAngle <= 90) {
+                        starStatus = '升起';
+                    } else if (heightAngle >= -90 && heightAngle <= -10) {
+                        starStatus = '落下';
+                    } else if (heightAngle > -10 && heightAngle < 10) {
+                        if (heightAngle > previousHeight) {
+                            starStatus = '日出';
+                        } else {
+                            starStatus = '日落';
+                        }
+                    }
+                }
+                
+                // 计算亮度基础值（0-100，与质量成正比，与距离成反比）
+                // 假设质量范围在0.1-10之间，距离范围在1-1000之间
+                const massFactor = Math.min(body.mass / 10, 1); // 质量因子，最大为1
+                const distanceFactor = Math.min(100 / distance, 1); // 距离因子，最大为1
+                let brightness = massFactor * distanceFactor * 100; // 基础亮度值
+                
+                // 根据恒星状态调整亮度
+                if (starStatus === '升起') {
+                    brightness = brightness * 1; // 起起状态保持原值
+                } else if (starStatus === '落下') {
+                    brightness = brightness * 0; // 落下状态为0
+                } else if (starStatus === '日出' || starStatus === '日落') {
+                    // 日出/日落状态：亮度从0到基础值线性变化，基于高度角(-10到10度)
+                    const transitionFactor = (heightAngle + 10) / 20; // 将-10到10映射到0到1
+                    brightness = brightness * transitionFactor; // 日出/日落状态
+                }
+                
+                // 确保亮度在0-100范围内
+                brightness = Math.max(0, Math.min(100, brightness));
+                
+                // 累加到总亮度
+                totalBrightness += brightness;
+                starCount++;
+                
+                // 更新上一次的高度角
+                previousStarHeights[body.name] = heightAngle;
+                
+                // 更新DOM元素（添加错误处理）
+                try {
+                    const distanceElement = document.getElementById(`star-${body.name}-distance`);
+                    const heightElement = document.getElementById(`star-${body.name}-height`);
+                    const temperatureElement = document.getElementById(`star-${body.name}-temperature`);
+                    const statusElement = document.getElementById(`star-${body.name}-status`);
+                    const brightnessElement = document.getElementById(`star-${body.name}-brightness`);
+                    
+                    if (distanceElement) distanceElement.textContent = distance.toFixed(2);
+                    if (heightElement) heightElement.textContent = heightAngle.toFixed(2);
+                    if (temperatureElement) temperatureElement.textContent = starTemperature;
+                    if (statusElement) statusElement.textContent = starStatus;
+                    if (brightnessElement) brightnessElement.textContent = brightness.toFixed(1);
+                } catch (error) {
+                    console.warn(`更新天体 ${body.name} 信息时出错:`, error);
+                    // 继续处理其他天体，不因单个天体更新失败而中断
+                }
+            } catch (bodyError) {
+                console.warn(`处理天体 ${body.name} 时出错:`, bodyError);
+                // 跳过这个天体，继续处理下一个
+            }
+        });
+        
+        // 计算并更新总亮度（所有恒星亮度之和除以总恒星数）
+        const averageBrightness = starCount > 0 ? totalBrightness / starCount : 0;
+        currentTotalBrightness = averageBrightness; // 更新全局总亮度变量
+        try {
+            const totalBrightnessElement = document.getElementById('total-brightness-value');
+            if (totalBrightnessElement) {
+                totalBrightnessElement.textContent = averageBrightness.toFixed(1);
+            }
+        } catch (error) {
+            console.warn('更新总亮度时出错:', error);
         }
     } catch (error) {
-        console.warn('更新总亮度时出错:', error);
+        console.error('更新恒星信息时发生严重错误:', error);
+        // 重置显示状态，防止持续报错
+        isShowingStarInfo = false;
+        
+        try {
+            const infoPanel = document.getElementById('info');
+            const content = document.getElementById('info-content');
+            if (infoPanel && content) {
+                infoPanel.style.display = 'none';
+                content.style.display = 'none';
+            }
+        } catch (resetError) {
+            console.warn('重置信息面板时出错:', resetError);
+        }
     }
 }
 
@@ -3911,6 +4091,8 @@ window.addEventListener('click', function (event) {
 function clearCivilizationHistory() {
     try {
         localStorage.removeItem('civilizationHistory');
+        // 确保下一个文明序号从1开始
+        civilizationId = 1;
         showCivilizationHistory(); // 重新加载显示（此时为空）
     } catch (e) {
         console.error("Error clearing civilization history:", e);
