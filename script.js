@@ -1,4 +1,18 @@
 // 移动设备检测和优化
+// 初始加载动画逻辑
+window.addEventListener('load', function() {
+    const loadingScreen = document.getElementById('loading-screen');
+    
+    // 3.5秒后隐藏加载动画
+    setTimeout(function() {
+        loadingScreen.style.animation = 'hideLoading 1s ease-out forwards';
+        loadingScreen.style.pointerEvents = 'none';
+        
+        // 确保背景科技感样式正确应用
+        document.body.style.backgroundImage = 'radial-gradient(circle at center, rgba(0, 50, 100, 0.3) 0%, rgba(0, 0, 0, 0.9) 70%)';
+    }, 3500);
+});
+
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
 
 // 强制移动端竖屏

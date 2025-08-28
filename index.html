@@ -15,6 +15,20 @@
 </head>
 
 <body>
+    <!-- 初始加载动画 -->
+    <div id="loading-screen">
+        <div class="loading-content">
+            <img src="./3body.png" alt="三体文明模拟器" class="loading-logo">
+            <div class="loading-progress-container">
+                <div id="loading-progress-bar"></div>
+            </div>
+            <div class="loading-text">
+                <p><strong>给岁月以文明，而不是给文明以岁月</strong></p>
+                <p>Brought to you by Evanstellun, wait a second</p>
+            </div>
+        </div>
+    </div>
+
     <div id="container">
         <!-- 引用文字显示区域 -->
         <div id="quotes-container">
@@ -97,6 +111,11 @@
                     <input type="range" id="speed-control" min="0" max="100" value="30">
                 </div>
                 <span id="speed-value">30.0x</span>
+            </div>
+
+            <!-- 版权信息 -->
+            <div id="copyright-info">
+                Designed & built by <a href="https://github.com/evanstellun" target="_blank" rel="noopener noreferrer">Evanstellu</a>n，All Rights Reserved.<br/>Open Source under <a href="https://github.com/evanstellun/web-three-body/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License. </a>
             </div>
         </div>
 
