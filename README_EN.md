@@ -1,3 +1,4 @@
+# Trisolaran Civilization Simulator
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://www.microsoft.com/windows)
 [![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com)
@@ -78,7 +79,7 @@ Perhaps only when we face the collapse and reconstruction of civilizations again
 
 - Liu Cixin, author of the *Three-Body Problem* series and Hugo Award winner
 - Netlify for providing free GitHub repository synchronization
-- A total of 2,752 three-body civilizations that were destroyed during program testing and 147 three-body civilizations that successfully flew to new homes (doge)
+- A total of 3,154 three-body civilizations that were destroyed during program testing and 207 three-body civilizations that successfully flew to new homes (doge)
 
 ## License
 
@@ -87,6 +88,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 "Weakness and ignorance are not barriers to survival, but arrogance is." — *Three-Body Problem*
 
 May we all find our own light of civilization in this chaotic universe.
-
 
 
