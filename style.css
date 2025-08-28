@@ -1009,3 +1009,19 @@ label {
     display: flex !important;
     z-index: 1000;
 }
+
+/* 恒星名称标注样式 */
+.star-label {
+    position: absolute;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    user-select: none;
+    transform: translate(-50%, -50%);
+    white-space: nowrap;
+    z-index: 1000;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    opacity: 0.9;
+}
