@@ -574,6 +574,19 @@ function randomizeBodies() {
     civilizationStartTime = time;
     lastCivilizationRecorded = false; // 重置文明记录标志
     civilizationId = getNextCivilizationId();
+    
+    // 重置恒星信息相关状态
+    const wasShowingStarInfo = isShowingStarInfo;
+    isShowingStarInfo = false; // 临时设置为false，防止更新冲突
+    previousStarHeights = {}; // 重置高度角记录
+    
+    // 重置碰撞相关状态
+    collisions = []; // 清空碰撞数组
+    
+    // 重置updateStarInfo调用计数器
+    if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
+        updateStarInfo.callCount = 0;
+    }
 
     // 清空当前所有天体和轨迹
     bodies = [];
@@ -658,6 +671,14 @@ function randomizeBodies() {
     document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
 
     updateFirstPersonButtonState();
+    
+    // 如果重开一局前正在显示恒星信息，延迟一段时间后重新显示
+    if (wasShowingStarInfo) {
+        setTimeout(() => {
+            isShowingStarInfo = true;
+            showStarInfo();
+        }, 100); // 短暂延迟，确保天体数据已完全初始化
+    }
 }
 function resetSimulation() {
     time = 0; // 确保时间重置为0
@@ -675,6 +696,17 @@ function resetSimulation() {
     civilizationStartTime = 0;
     lastCivilizationRecorded = false; // 重置文明记录标志
     civilizationId = getNextCivilizationId();
+    
+    // 重置恒星信息窗口相关变量
+    lastBodyNames = undefined;
+    
+    // 重置碰撞相关状态
+    collisions = []; // 清空碰撞数组
+    
+    // 重置updateStarInfo调用计数器
+    if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
+        updateStarInfo.callCount = 0;
+    }
     
     // 使用当前初始数据重新创建天体
     bodies = initialBodies.map(data => new CelestialBody(
@@ -743,6 +775,13 @@ function checkCollisions() {
             const collisionDistance = body1.radius + body2.radius;
 
             if (distance < collisionDistance && distance > 0) {
+                // 记录碰撞信息
+                collisions.push({
+                    body1: body1.name,
+                    body2: body2.name,
+                    time: time
+                });
+                
                 // 创建碰撞消息
                 let message = "";
                 // 检查是否是行星P与其他天体碰撞
@@ -850,15 +889,82 @@ function checkCollisions() {
         }
     }
     
+    // 检查是否有碰撞发生，如果有则执行与"重开一局"相同的重置逻辑
+    if (collisions.length > 0) {
+        console.log('碰撞处理完成，执行与重开一局相同的重置逻辑');
+        
+        // 执行与重开一局相同的重置逻辑
+        const wasShowingStarInfo = isShowingStarInfo;
+        isShowingStarInfo = false; // 临时设置为false，防止更新冲突
+        previousStarHeights = {}; // 重置高度角记录
+        
+        // 重置碰撞相关状态
+        collisions = []; // 清空碰撞数组
+        
+        // 重置updateStarInfo调用计数器
+        if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
+            console.log('重置updateStarInfo.callCount从', updateStarInfo.callCount, '到0');
+            updateStarInfo.callCount = 0;
+        }
+        
+        // 重置updateStarInfo状态
+        isUpdatingStarInfo = false;
+        
+        // 重置恒星信息窗口相关变量
+        lastBodyNames = undefined;
+        
+        // 如果之前正在显示恒星信息，延迟一段时间后重新显示
+        if (wasShowingStarInfo) {
+            setTimeout(() => {
+                isShowingStarInfo = true;
+                showStarInfo();
+            }, 100); // 短暂延迟，确保天体数据已完全初始化
+        }
+    }
 
     // 更新第一视角按钮状态
     updateFirstPersonButtonState();
+
+
 }
 // 显示碰撞消息
 function showCollisionMessage(message) {
     const collisionMessage = document.getElementById('collision-message');
     collisionMessage.textContent = message;
     collisionMessage.style.display = 'block';
+
+    // 碰撞发生后执行与"重开一局"相同的重置逻辑
+    if (isShowingStarInfo) {
+        console.log('碰撞发生，执行与重开一局相同的重置逻辑');
+        
+        // 执行与重开一局相同的重置逻辑
+        const wasShowingStarInfo = isShowingStarInfo;
+        isShowingStarInfo = false; // 临时设置为false，防止更新冲突
+        previousStarHeights = {}; // 重置高度角记录
+        
+        // 重置碰撞相关状态
+        collisions = []; // 清空碰撞数组
+        
+        // 重置updateStarInfo调用计数器
+        if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
+            console.log('showCollisionMessage中重置updateStarInfo.callCount从', updateStarInfo.callCount, '到0');
+            updateStarInfo.callCount = 0;
+        }
+        
+        // 重置updateStarInfo状态
+        isUpdatingStarInfo = false;
+        
+        // 重置恒星信息窗口相关变量
+        lastBodyNames = undefined;
+        
+        // 如果之前正在显示恒星信息，延迟一段时间后重新显示
+        if (wasShowingStarInfo) {
+            setTimeout(() => {
+                isShowingStarInfo = true;
+                showStarInfo();
+            }, 100); // 短暂延迟，确保天体数据已完全初始化
+        }
+    }
 
     setTimeout(() => {
         collisionMessage.style.display = 'none';
@@ -3096,7 +3202,7 @@ function showCivilizationHistory() {
 
             civilizations.forEach(entry => {
                 // 根据灭亡消息内容判断是高温还是低温毁灭
-                let destructionType = "在低温下毁灭"; // 默认低温毁灭
+                let destructionType = "被观察者关闭了"; // 默认低温毁灭
                 
                 // 高温毁灭的关键词
                 if (entry.destruction.includes("烈焰") || 
@@ -3697,7 +3803,21 @@ function showStarInfo() {
         
         // 立即更新一次恒星信息
         try {
-            updateStarInfo();
+            // 重置状态，确保updateStarInfo能够正确执行
+            if (typeof updateStarInfo.callCount !== 'undefined') {
+                updateStarInfo.callCount = 0;
+            }
+            const tempIsUpdating = isUpdatingStarInfo;
+            isUpdatingStarInfo = false; // 临时设置为false，允许updateStarInfo执行
+            
+            // 立即执行updateStarInfo，确保DOM元素已创建完成
+            if (isShowingStarInfo) {
+                updateStarInfo();
+            }
+            // 延迟恢复原来的状态，确保updateStarInfo能够正常执行
+            setTimeout(() => {
+                isUpdatingStarInfo = tempIsUpdating;
+            }, 50);
         } catch (updateError) {
             console.warn('立即更新恒星信息时出错:', updateError);
         }
@@ -3710,17 +3830,99 @@ function showStarInfo() {
 
 // 实时更新恒星信息的函数
 function updateStarInfo() {
-    if (!isShowingStarInfo) return;
+    console.log('updateStarInfo被调用，isShowingStarInfo:', isShowingStarInfo, 'isUpdatingStarInfo:', isUpdatingStarInfo, 'callCount:', updateStarInfo.callCount || 0);
+    // 防止重入和循环调用
+    if (!isShowingStarInfo || isUpdatingStarInfo) return;
     
-    // 获取所有非行星P的天体
-    const celestialBodies = bodies.filter(body => body.name !== 'p');
-    const planetP = bodies.find(body => body.name === 'p');
-    
-    // 如果行星P不存在，尝试使用第一个天体作为参考点
-    let referencePoint = planetP;
-    if (!referencePoint && bodies.length > 0) {
-        referencePoint = bodies[0];
+    // 添加递归调用计数器，防止无限循环
+    if (typeof updateStarInfo.callCount === 'undefined') {
+        updateStarInfo.callCount = 0;
     }
+    if (updateStarInfo.callCount > 3) {
+        console.warn('updateStarInfo调用次数过多，可能存在无限循环，重置计数器');
+        updateStarInfo.callCount = 0;
+        return;
+    }
+    
+    try {
+        isUpdatingStarInfo = true;
+        updateStarInfo.callCount++;
+        
+        // 获取所有有效的非行星P的天体 - 使用let允许后续重新赋值
+        let celestialBodies = bodies.filter(body => body && body.name && body.name !== 'p');
+        const planetP = bodies.find(body => body && body.name === 'p');
+        
+        // 提前声明referencePoint变量，确保在变化检测逻辑中可以使用
+        let referencePoint = planetP;
+        if (!referencePoint && bodies.length > 0) {
+            referencePoint = bodies[0];
+        }
+    
+    // 检查天体列表是否发生变化（新增、删除或合并）
+        let hasChanged = false; // 在外层定义hasChanged变量
+        if (typeof lastBodyNames === 'undefined') {
+            // 首次运行时初始化
+            lastBodyNames = new Set(celestialBodies.map(body => body.name));
+        } else {
+            try {
+                const currentBodyNames = new Set(celestialBodies.map(body => body.name));
+                
+                // 检查是否有新增或删除的天体
+                hasChanged = lastBodyNames.size !== currentBodyNames.size ||
+                           ![...lastBodyNames].every(name => currentBodyNames.has(name));
+                
+                if (hasChanged) {
+                    // 天体列表发生变化，重新创建信息窗口
+                    try {
+                        // 检查是否正在更新中，避免递归调用
+                        if (isUpdatingStarInfo) {
+                            console.log('正在更新中，跳过天体列表变化处理');
+                            return;
+                        }
+                        
+                        // 检查调用计数器，防止无限循环
+                        if (updateStarInfo.callCount > 1) {
+                            console.log('调用次数过多，跳过天体列表变化处理');
+                            return;
+                        }
+                        
+                        // 避免在showStarInfo中立即调用updateStarInfo
+                        const tempIsUpdating = isUpdatingStarInfo;
+                        isUpdatingStarInfo = true; // 临时设置为true，防止showStarInfo中的updateStarInfo调用
+                        
+                        // 重置调用计数器，避免计数器干扰
+                        if (updateStarInfo.callCount > 0) {
+                            updateStarInfo.callCount = 0;
+                        }
+                        
+                        showStarInfo();
+                        
+                        // 重置lastBodyNames
+                        lastBodyNames = currentBodyNames;
+                        
+                        // 重置状态，避免重复调用
+                        isUpdatingStarInfo = tempIsUpdating;
+                        updateStarInfo.callCount = 0;
+                        
+                        // showStarInfo已经会调用updateStarInfo，不需要重复调用
+                        // 直接返回，避免递归调用
+                    } catch (error) {
+                        console.warn('重新创建恒星信息窗口时出错:', error);
+                        // 即使出错也更新lastBodyNames，避免持续触发重新创建
+                        lastBodyNames = currentBodyNames;
+                    }
+                    
+                    // 天体列表已变化并重新创建了窗口，直接返回
+                    // 避免继续执行DOM更新逻辑，防止状态混乱和卡死
+                    // 延迟的updateStarInfo调用会负责更新新窗口的数据
+                    return;
+                }
+            } catch (changeCheckError) {
+                console.warn('检查天体列表变化时出错:', changeCheckError);
+                // 出错时重置lastBodyNames，避免持续触发错误
+                lastBodyNames = new Set(celestialBodies.map(body => body.name));
+            }
+        }
     
     // 如果仍然没有参考点或没有其他天体，则跳过更新
     if (!referencePoint || celestialBodies.length === 0) {
@@ -3825,11 +4027,26 @@ function updateStarInfo() {
                     const statusElement = document.getElementById(`star-${body.name}-status`);
                     const brightnessElement = document.getElementById(`star-${body.name}-brightness`);
                     
-                    if (distanceElement) distanceElement.textContent = distance.toFixed(2);
-                    if (heightElement) heightElement.textContent = heightAngle.toFixed(2);
-                    if (temperatureElement) temperatureElement.textContent = starTemperature;
-                    if (statusElement) statusElement.textContent = starStatus;
-                    if (brightnessElement) brightnessElement.textContent = brightness.toFixed(1);
+                    // 检查DOM元素是否存在，如果不存在则跳过更新
+                    if (!distanceElement || !heightElement || !temperatureElement || !statusElement || !brightnessElement) {
+                        console.warn(`天体 ${body.name} 的DOM元素不存在，可能窗口刚被重新创建`);
+                        // 如果DOM元素不存在，且不是由天体列表变化触发的更新，则重新创建窗口
+                        // 添加更严格的条件检查，避免递归调用
+                        if (isShowingStarInfo && !isUpdatingStarInfo && !hasChanged && updateStarInfo.callCount <= 1) {
+                            // 重置调用计数器，避免计数器干扰
+                            if (updateStarInfo.callCount > 0) {
+                                updateStarInfo.callCount = 0;
+                            }
+                            showStarInfo();
+                        }
+                        return; // 跳过这个天体的更新
+                    }
+                    
+                    distanceElement.textContent = distance.toFixed(2);
+                    heightElement.textContent = heightAngle.toFixed(2);
+                    temperatureElement.textContent = starTemperature;
+                    statusElement.textContent = starStatus;
+                    brightnessElement.textContent = brightness.toFixed(1);
                 } catch (error) {
                     console.warn(`更新天体 ${body.name} 信息时出错:`, error);
                     // 继续处理其他天体，不因单个天体更新失败而中断
@@ -3844,29 +4061,41 @@ function updateStarInfo() {
         const averageBrightness = starCount > 0 ? totalBrightness / starCount : 0;
         currentTotalBrightness = averageBrightness; // 更新全局总亮度变量
         try {
-            const totalBrightnessElement = document.getElementById('total-brightness-value');
-            if (totalBrightnessElement) {
-                totalBrightnessElement.textContent = averageBrightness.toFixed(1);
+                        const totalBrightnessElement = document.getElementById('total-brightness-value');
+                        if (totalBrightnessElement) {
+                            totalBrightnessElement.textContent = averageBrightness.toFixed(1);
+                        }
+                    } catch (error) {
+                        console.warn('更新总亮度时出错:', error);
+                    }
+                } catch (error) {
+                    console.error('更新恒星信息时发生严重错误:', error);
+                    // 重置显示状态，防止持续报错
+                    isShowingStarInfo = false;
+                    
+                    try {
+                        const infoPanel = document.getElementById('info');
+                        const content = document.getElementById('info-content');
+                        if (infoPanel && content) {
+                            infoPanel.style.display = 'none';
+                            content.style.display = 'none';
+                        }
+                    } catch (resetError) {
+                        console.warn('重置信息面板时出错:', resetError);
+                    }
+                }
+            } catch (error) {
+                console.error('恒星信息更新过程中发生未捕获错误:', error);
+                // 重置显示状态，防止持续报错
+                isShowingStarInfo = false;
+            } finally {
+                // 确保标志始终被重置
+                isUpdatingStarInfo = false;
+                // 重置调用计数器
+                if (updateStarInfo.callCount > 0) {
+                    updateStarInfo.callCount--;
+                }
             }
-        } catch (error) {
-            console.warn('更新总亮度时出错:', error);
-        }
-    } catch (error) {
-        console.error('更新恒星信息时发生严重错误:', error);
-        // 重置显示状态，防止持续报错
-        isShowingStarInfo = false;
-        
-        try {
-            const infoPanel = document.getElementById('info');
-            const content = document.getElementById('info-content');
-            if (infoPanel && content) {
-                infoPanel.style.display = 'none';
-                content.style.display = 'none';
-            }
-        } catch (resetError) {
-            console.warn('重置信息面板时出错:', resetError);
-        }
-    }
 }
 
 // 操作指南展开/收起
@@ -4044,6 +4273,11 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
     // 清空文件输入框，以便下次选择同一文件也能触发change事件
     e.target.value = '';
 });
+// 全局变量：用于跟踪上一次更新时的天体名称
+let lastBodyNames;
+// 全局变量：防止updateStarInfo和showStarInfo之间的无限循环
+let isUpdatingStarInfo = false;
+
 // 在 script.js 中添加检查文明是否进入星际时代的函数
 function checkCivilizationMilestone() {
     // 只有当行星P存在且文明尚未记录时才检查
@@ -4077,7 +4311,12 @@ function showInterstellarMessage(era) {
 // 按钮事件绑定
 document.getElementById('show-history-btn').addEventListener('click', showCivilizationHistory);
 document.getElementById('updateBtn').addEventListener('click', resetSimulation); // 重新模拟使用初始数据
-document.getElementById('randomizeBtn').addEventListener('click', randomizeBodies); // 重开一局
+document.getElementById('randomizeBtn').addEventListener('click', function() {
+    // 重开一局时重置恒星信息窗口相关变量
+    lastBodyNames = undefined;
+    isUpdatingStarInfo = false; // 确保重置更新标志，防止卡死
+    randomizeBodies();
+}); // 重开一局
 
 // 文明历史按钮事件
 document.querySelector('.close').addEventListener('click', closeCivilizationHistory);
