@@ -2475,13 +2475,41 @@ function calculateTotalBrightness() {
         
         // 判断恒星状态
         let starStatus = '';
+        // 初始化previousStarHeights对象，如果不存在
+        if (!previousStarHeights) {
+            previousStarHeights = {};
+        }
+        const previousHeight = previousStarHeights[body.name] || heightAngle;
+        
         if (heightAngle >= 10 && heightAngle <= 90) {
             starStatus = '升起';
         } else if (heightAngle >= -90 && heightAngle <= -10) {
             starStatus = '落下';
         } else if (heightAngle > -10 && heightAngle < 10) {
-            starStatus = '日出';
+            // 在地平线附近（-10到10度），需要更精确的判断
+            if (heightAngle > previousHeight) {
+                // 高度角在增加，可能是日出或从落下变为升起
+                if (previousHeight <= -10) {
+                    // 从落下状态变为升起，是日出
+                    starStatus = '日出';
+                } else {
+                    // 已经在地平线附近，高度角增加，继续认为是日出
+                    starStatus = '日出';
+                }
+            } else {
+                // 高度角在减少，可能是日落或从升起变为落下
+                if (previousHeight >= 10) {
+                    // 从升起状态变为落下，是日落
+                    starStatus = '日落';
+                } else {
+                    // 已经在地平线附近，高度角减少，继续认为是日落
+                    starStatus = '日落';
+                }
+            }
         }
+        
+        // 更新上一次的高度角
+        previousStarHeights[body.name] = heightAngle;
         
         // 计算亮度
         const massFactor = Math.min(body.mass / 10, 1);
@@ -3739,7 +3767,6 @@ function showStarInfo() {
                                     距离: <span id="star-${body.name}-distance">计算中...</span> 单位<br>
                                     高度角: <span id="star-${body.name}-height">计算中...</span>°<br>
                                     表面温度: <span id="star-${body.name}-temperature">计算中...</span> °C<br>
-                                    当前为<span id="star-${body.name}-status">计算中...</span>状态<br>
                                     亮度: <span id="star-${body.name}-brightness">计算中...</span>
                                 </div>
                             </div>
@@ -3979,15 +4006,31 @@ function updateStarInfo() {
                     // 恢复原来的恒星颜色
                     body.color = getSpectralColor(body.mass);
                     
+                    // 改进的恒星状态判断逻辑
                     if (heightAngle >= 10 && heightAngle <= 90) {
                         starStatus = '升起';
                     } else if (heightAngle >= -90 && heightAngle <= -10) {
                         starStatus = '落下';
                     } else if (heightAngle > -10 && heightAngle < 10) {
+                        // 在地平线附近（-10到10度），需要更精确的判断
                         if (heightAngle > previousHeight) {
-                            starStatus = '日出';
+                            // 高度角在增加，可能是日出或从落下变为升起
+                            if (previousHeight <= -10) {
+                                // 从落下状态变为升起，是日出
+                                starStatus = '日出';
+                            } else {
+                                // 已经在地平线附近，高度角增加，继续认为是日出
+                                starStatus = '日出';
+                            }
                         } else {
-                            starStatus = '日落';
+                            // 高度角在减少，可能是日落或从升起变为落下
+                            if (previousHeight >= 10) {
+                                // 从升起状态变为落下，是日落
+                                starStatus = '日落';
+                            } else {
+                                // 已经在地平线附近，高度角减少，继续认为是日落
+                                starStatus = '日落';
+                            }
                         }
                     }
                 }
@@ -4024,11 +4067,10 @@ function updateStarInfo() {
                     const distanceElement = document.getElementById(`star-${body.name}-distance`);
                     const heightElement = document.getElementById(`star-${body.name}-height`);
                     const temperatureElement = document.getElementById(`star-${body.name}-temperature`);
-                    const statusElement = document.getElementById(`star-${body.name}-status`);
                     const brightnessElement = document.getElementById(`star-${body.name}-brightness`);
                     
                     // 检查DOM元素是否存在，如果不存在则跳过更新
-                    if (!distanceElement || !heightElement || !temperatureElement || !statusElement || !brightnessElement) {
+                    if (!distanceElement || !heightElement || !temperatureElement || !brightnessElement) {
                         console.warn(`天体 ${body.name} 的DOM元素不存在，可能窗口刚被重新创建`);
                         // 如果DOM元素不存在，且不是由天体列表变化触发的更新，则重新创建窗口
                         // 添加更严格的条件检查，避免递归调用
@@ -4045,7 +4087,6 @@ function updateStarInfo() {
                     distanceElement.textContent = distance.toFixed(2);
                     heightElement.textContent = heightAngle.toFixed(2);
                     temperatureElement.textContent = starTemperature;
-                    statusElement.textContent = starStatus;
                     brightnessElement.textContent = brightness.toFixed(1);
                 } catch (error) {
                     console.warn(`更新天体 ${body.name} 信息时出错:`, error);
