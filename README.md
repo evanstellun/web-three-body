@@ -6,6 +6,7 @@
 [![Tech](https://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg)](https://developer.mozilla.org/)
 
 [English Version Here](README_EN.md)
+[Русская версия здесь](README_RU.md)
 
 ## 项目介绍
 
