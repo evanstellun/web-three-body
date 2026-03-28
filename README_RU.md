@@ -5,6 +5,8 @@
 [![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com)
 [![Tech](https://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg)](https://developer.mozilla.org/)
 
+[中文版点这里](README.md)
+
 [English Version Here](README_EN.md)
 
 ## О проекте
