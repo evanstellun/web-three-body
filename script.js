@@ -1659,10 +1659,8 @@ function drawTrails() {
 // 绘制天体
 function drawBodies() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    console.log('drawBodies函数被调用，isFirstPersonView状态:', isFirstPersonView);
 
     if (isFirstPersonView) {
-        console.log('进入第一视角模式，调用drawFirstPersonView');
         drawFirstPersonView();
         return;
     }
@@ -1716,6 +1714,15 @@ function drawBodies() {
                 r = parseInt(hex.slice(0, 2), 16);
                 g = parseInt(hex.slice(2, 4), 16);
                 b = parseInt(hex.slice(4, 6), 16);
+            } else if (color.startsWith('rgb(')) {
+                const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                if (rgbMatch) {
+                    r = parseInt(rgbMatch[1]);
+                    g = parseInt(rgbMatch[2]);
+                    b = parseInt(rgbMatch[3]);
+                } else {
+                    r = g = b = 255;
+                }
             } else {
                 r = g = b = 255; // 默认白色
             }
@@ -1860,7 +1867,6 @@ function showQuote() {
 
 // 第一视角渲染函数
 function drawFirstPersonView() {
-    console.log('drawFirstPersonView函数被调用');
     const planetP = bodies.find(body => body.name === 'p');
     let referencePoint = planetP;
     
@@ -1877,7 +1883,6 @@ function drawFirstPersonView() {
     }
 
     // 更新恒星位置
-    console.log('准备调用updateStarsInFirstPersonView函数，当前isFirstPersonView状态:', isFirstPersonView);
     updateStarsInFirstPersonView(referencePoint);
     
     // 计算总亮度，确保天空和地面颜色更新
@@ -2249,6 +2254,15 @@ function updateStarsInFirstPersonView(planetP) {
             r = parseInt(hex.slice(0, 2), 16);
             g = parseInt(hex.slice(2, 4), 16);
             b = parseInt(hex.slice(4, 6), 16);
+        } else if (starColor.startsWith('rgb(')) {
+            const rgbMatch = starColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (rgbMatch) {
+                r = parseInt(rgbMatch[1]);
+                g = parseInt(rgbMatch[2]);
+                b = parseInt(rgbMatch[3]);
+            } else {
+                r = g = b = 255;
+            }
         } else {
             // 如果不是十六进制颜色，尝试使用THREE.Color直接解析
             const tempColor = new THREE.Color(starColor);
@@ -3283,7 +3297,6 @@ let isShowingStarInfo = false;
 // 主动画循环
 function animate() {
     updateBodiesPosition();
-    console.log('animate函数调用drawBodies，isFirstPersonView状态:', isFirstPersonView);
     drawBodies();
 
     // 更新UI信息
@@ -3695,17 +3708,7 @@ function handleControlsToggle() {
 // 初始化控制面板切换功能
 setupControlsToggle();
 
-function showBodyInfo(body) {
-    selectedBody = body;
-    document.getElementById('body-name').textContent = body.name;
-    document.getElementById('body-mass').textContent = body.mass;
-    document.getElementById('body-velocity').textContent = `${Math.sqrt(body.vx**2 + body.vy**2 + body.vz**2).toFixed(2)}`;
-    
-    const bodyInfo = document.getElementById('body-info');
-    // 显示天体信息窗口
-    bodyInfo.style.display = 'block';
-    // 保持操作说明窗口显示，不隐藏它
-}
+
 
 // 添加天体信息窗口关闭按钮事件
 if(document.getElementById('toggle-body-info')) {
@@ -3857,7 +3860,6 @@ function showStarInfo() {
 
 // 实时更新恒星信息的函数
 function updateStarInfo() {
-    console.log('updateStarInfo被调用，isShowingStarInfo:', isShowingStarInfo, 'isUpdatingStarInfo:', isUpdatingStarInfo, 'callCount:', updateStarInfo.callCount || 0);
     // 防止重入和循环调用
     if (!isShowingStarInfo || isUpdatingStarInfo) return;
     
@@ -4166,7 +4168,7 @@ document.getElementById('toggle-info').addEventListener('click', function () {
         const content = document.getElementById('info-content');
         const button = this;
         
-        if (content.style.display === 'none' || content.style.display === '') {
+        if (content.style.display === 'none' || content.style.display === '' || infoPanel.style.display === 'none') {
             // 恢复操作说明内容
             content.innerHTML = `
                 <h4>操作说明</h4>
@@ -4178,6 +4180,7 @@ document.getElementById('toggle-info').addEventListener('click', function () {
                 <div id="time-info">时间: ${time.toFixed(2)}</div>
                 <div id="temperature-info">行星P表面温度: ${calculatePlanetPTemperature()} °C</div>
             `;
+            infoPanel.style.display = 'block';
             content.style.display = 'block';
             button.innerHTML = '✕';
         } else {
