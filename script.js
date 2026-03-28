@@ -596,62 +596,63 @@ function randomizeBodies() {
         delete trails[key];
     }
 
-    // 创建新的天体（使用不同质量展示不同光谱类型）
-    const alpha = new CelestialBody('α', 40000, 0, 0, 0, 0, 0, 0, getSpectralColor(40000));    // O型恒星（蓝色，大质量）
-    const beta = new CelestialBody('β', 15000, 0, 0, 0, 0, 0, 0, getSpectralColor(15000));      // B型恒星（蓝白色，中等质量）
-    const gamma = new CelestialBody('γ', 3000, 0, 0, 0, 0, 0, 0, getSpectralColor(3000));       // K型恒星（橙色，较小质量）
-    const p = new CelestialBody('p', 10, 0, 0, 0, 0, 0, 0, '#00ffff'); // 初始为青色
+    const maxAttempts = 100;
+    let validConfigFound = false;
+    let attempt = 0;
 
-    bodies.push(alpha, beta, gamma, p);
+    while (!validConfigFound && attempt < maxAttempts) {
+        attempt++;
+        
+        bodies = [];
+        
+        const alpha = new CelestialBody('α', 40000, 0, 0, 0, 0, 0, 0, getSpectralColor(40000));
+        const beta = new CelestialBody('β', 15000, 0, 0, 0, 0, 0, 0, getSpectralColor(15000));
+        const gamma = new CelestialBody('γ', 3000, 0, 0, 0, 0, 0, 0, getSpectralColor(3000));
+        const p = new CelestialBody('p', 10, 0, 0, 0, 0, 0, 0, '#00ffff');
 
-    // 随机生成完全随机的三维三体系统
-    // 行星质量范围
-    const planetMassMin = 5;
-    const planetMassMax = 55;
+        bodies.push(alpha, beta, gamma, p);
 
-    // 随机系统大小
-    const systemSize = Math.random() * 300 + 100; // 100-400
+        const planetMassMin = 5;
+        const planetMassMax = 55;
+        const systemSize = Math.random() * 300 + 100;
 
-    // 为每个天体设置随机位置和速度
-    for (let i = 0; i < bodies.length; i++) {
-        // 设置质量
-        if (i < 3) { // 恒星
-            // 先随机选择光谱类型
-            const randomSpectralType = spectralTypes[Math.floor(Math.random() * spectralTypes.length)];
-            // 在该光谱类型的质量范围内随机质量
-            bodies[i].mass = Math.random() * (randomSpectralType.maxMass - randomSpectralType.minMass) + randomSpectralType.minMass;
-        } else { // 行星
-            bodies[i].mass = Math.random() * (planetMassMax - planetMassMin) + planetMassMin;
+        for (let i = 0; i < bodies.length; i++) {
+            if (i < 3) {
+                const randomSpectralType = spectralTypes[Math.floor(Math.random() * spectralTypes.length)];
+                bodies[i].mass = Math.random() * (randomSpectralType.maxMass - randomSpectralType.minMass) + randomSpectralType.minMass;
+            } else {
+                bodies[i].mass = Math.random() * (planetMassMax - planetMassMin) + planetMassMin;
+            }
+
+            const distance = Math.random() * systemSize;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.random() * Math.PI;
+
+            bodies[i].x = distance * Math.sin(phi) * Math.cos(theta);
+            bodies[i].y = distance * Math.sin(phi) * Math.sin(theta);
+            bodies[i].z = distance * Math.cos(phi);
+
+            const speed = Math.random() * 15 + 5;
+            const vTheta = Math.random() * Math.PI * 2;
+            const vPhi = Math.random() * Math.PI;
+
+            bodies[i].vx = speed * Math.sin(vPhi) * Math.cos(vTheta);
+            bodies[i].vy = speed * Math.sin(vPhi) * Math.sin(vTheta);
+            bodies[i].vz = speed * Math.cos(vPhi);
+
+            bodies[i].radius = Math.cbrt(bodies[i].mass) * 0.5;
+
+            if (i < 3) {
+                bodies[i].color = getSpectralColor(bodies[i].mass);
+            }
+
+            trails[bodies[i].name] = [];
         }
 
-        // 设置随机位置
-        const distance = Math.random() * systemSize;
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.random() * Math.PI;
-
-        bodies[i].x = distance * Math.sin(phi) * Math.cos(theta);
-        bodies[i].y = distance * Math.sin(phi) * Math.sin(theta);
-        bodies[i].z = distance * Math.cos(phi);
-
-        // 设置随机速度
-        const speed = Math.random() * 15 + 5; // 5-20
-        const vTheta = Math.random() * Math.PI * 2;
-        const vPhi = Math.random() * Math.PI;
-
-        bodies[i].vx = speed * Math.sin(vPhi) * Math.cos(vTheta);
-        bodies[i].vy = speed * Math.sin(vPhi) * Math.sin(vTheta);
-        bodies[i].vz = speed * Math.cos(vPhi);
-
-        // 更新半径
-        bodies[i].radius = Math.cbrt(bodies[i].mass) * 0.5;
-
-        // 根据质量更新恒星颜色（仅对恒星）
-        if (i < 3) { // 恒星
-            bodies[i].color = getSpectralColor(bodies[i].mass);
+        const temperature = calculateTemperatureWithBodies(bodies);
+        if (temperature !== null && temperature >= -100 && temperature <= 100) {
+            validConfigFound = true;
         }
-
-        // 初始化轨迹数组
-        trails[bodies[i].name] = [];
     }
 
     // 重置聚焦天体
@@ -1225,48 +1226,45 @@ function calculateStarTemperature(star) {
 
 // 计算行星P的表面温度（基于所有其他天体的综合影响）
 function calculatePlanetPTemperature() {
-    // 找到行星p
     const planetP = bodies.find(body => body.name === 'p');
     if (!planetP) return '--';
-
-    // 如果系统中没有其他天体，则返回默认值
     if (bodies.length <= 1) return '--';
-
     let totalEnergy = 0;
-
-    // 计算来自所有其他天体的能量贡献
     for (const body of bodies) {
-        // 跳过行星P本身
         if (body.name === 'p') continue;
-
-        // 计算距离
         const dx = planetP.x - body.x;
         const dy = planetP.y - body.y;
         const dz = planetP.z - body.z;
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-        // 防止除零错误
         if (distance === 0) continue;
-
-        // 使用增强的 Stefan-Boltzmann 定律计算能量贡献
-        // 假设所有天体都是理想黑体辐射源，能量与质量成正比，与距离平方成反比
-        // 增加系数以提高温度值
         const energy = 50 * body.mass / (distance * distance);
         totalEnergy += energy;
     }
-
-    // 如果没有其他天体贡献能量，返回默认值
     if (totalEnergy === 0) return '--';
-
-    // 基于总能量计算温度 (增强模型)
-    // 使用 Stefan-Boltzmann 定律: P = σ * A * T^4
-    // 这里我们增强系数使温度更现实
     const temperatureK = 150 * Math.pow(totalEnergy, 0.25);
-
-    // 转换为摄氏度
     const temperatureC = temperatureK - 273.15;
-
     return temperatureC.toFixed(2);
+}
+
+function calculateTemperatureWithBodies(bodiesArray) {
+    const planetP = bodiesArray.find(body => body.name === 'p');
+    if (!planetP) return null;
+    if (bodiesArray.length <= 1) return null;
+    let totalEnergy = 0;
+    for (const body of bodiesArray) {
+        if (body.name === 'p') continue;
+        const dx = planetP.x - body.x;
+        const dy = planetP.y - body.y;
+        const dz = planetP.z - body.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (distance === 0) continue;
+        const energy = 50 * body.mass / (distance * distance);
+        totalEnergy += energy;
+    }
+    if (totalEnergy === 0) return null;
+    const temperatureK = 150 * Math.pow(totalEnergy, 0.25);
+    const temperatureC = temperatureK - 273.15;
+    return temperatureC;
 }
 function getPlanetPColor(temperatureC) {
     // 将摄氏度转换为开尔文
@@ -3204,6 +3202,13 @@ function toggleFirstPersonView() {
         // 停止实时更新恒星信息
         isShowingStarInfo = false;
         
+        // 恢复所有恒星的光谱颜色
+        bodies.forEach(body => {
+            if (body.name !== 'p') {
+                body.color = getSpectralColor(body.mass);
+            }
+        });
+        
         // 恢复操作说明按钮
         infoBtn.title = '操作说明';
         infoBtn.innerHTML = '📋';
@@ -4002,11 +4007,15 @@ function updateStarInfo() {
                 if (distance > 900) {
                     isFlyingStar = true;
                     starStatus = '飞星';
-                    // 修改恒星颜色为白色
-                    body.color = '#ffffff';
+                    // 只有在第一视角下才修改恒星颜色为白色
+                    if (isFirstPersonView) {
+                        body.color = '#ffffff';
+                    }
                 } else {
-                    // 恢复原来的恒星颜色
-                    body.color = getSpectralColor(body.mass);
+                    // 恢复原来的恒星颜色（如果是第一视角模式）
+                    if (isFirstPersonView) {
+                        body.color = getSpectralColor(body.mass);
+                    }
                     
                     // 改进的恒星状态判断逻辑
                     if (heightAngle >= 10 && heightAngle <= 90) {
