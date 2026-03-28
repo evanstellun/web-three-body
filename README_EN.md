@@ -83,7 +83,7 @@ Perhaps only when we face the collapse and reconstruction of civilizations again
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
+Due to instances of misuse, versions 1.12.2 and later of this project will transition from the MIT License to the Apache-2.0 License. Usage requires authorization and attribution. For details, please refer to [LICENSE](LICENSE)
 
 "Weakness and ignorance are not barriers to survival, but arrogance is." — *Three-Body Problem*
 
