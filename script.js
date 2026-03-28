@@ -1905,6 +1905,8 @@ let starObjects = [];
 let firstPersonInitialized = false;
 let starLabels = [];
 let labelContainer;
+let sunLight, sunLight2, sunLight3;
+let atmosphericFog;
 
 // 初始化第一视角3D场景
 function initFirstPersonScene() {
@@ -2004,12 +2006,11 @@ console.log('文本标注容器初始化成功');
     firstPersonCamera.position.y = 10.0;
     cameraContainer.add(firstPersonCamera);
     
-    // 创建格子地面（类似Minecraft超平坦模式）
+    // 创建简单地面（确保能正常渲染）
     const gridSize = 1000;
     const gridDivisions = 100;
     const groundGeometry = new THREE.PlaneGeometry(gridSize, gridSize, gridDivisions, gridDivisions);
     
-    // 创建格子材质
     const groundMaterial = new THREE.MeshStandardMaterial({ 
         color: 0x808080,
         roughness: 0.9,
@@ -2020,27 +2021,13 @@ console.log('文本标注容器初始化成功');
     
     ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0; // 地面位于Y=0位置
-    ground.renderOrder = 1; // 确保地面在所有其他对象之上渲染
+    ground.position.y = 0;
+    ground.renderOrder = 1;
     firstPersonScene.add(ground);
     
-    // 创建格子线框 - 缓解摩尔纹效应
+    // 添加网格辅助线
     const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x404040, 0x404040);
-    gridHelper.position.y = 0.01; // 稍微抬高避免z-fighting
-    // 设置网格线更粗并增强抗锯齿
-    gridHelper.material.linewidth = 3; // 增大线宽
-    gridHelper.material.antialias = true; // 启用抗锯齿
-    gridHelper.material.depthTest = false; // 禁用深度测试以减少锯齿
-    gridHelper.material.depthWrite = false; // 禁用深度写入以减少锯齿
-    
-    // 为网格线添加轻微的随机偏移来打破规律性，缓解摩尔纹
-    const gridPositions = gridHelper.geometry.attributes.position.array;
-    for (let i = 0; i < gridPositions.length; i += 3) {
-        // 只对X和Z坐标添加微小随机偏移，Y坐标保持不变
-        gridPositions[i] += (Math.random() - 0.5) * 0.1; // X轴偏移
-        gridPositions[i + 2] += (Math.random() - 0.5) * 0.1; // Z轴偏移
-    }
-    gridHelper.geometry.attributes.position.needsUpdate = true;
+    gridHelper.position.y = 0.01;
     firstPersonScene.add(gridHelper);
     
     // 创建天穹（球体）
@@ -2055,11 +2042,27 @@ console.log('文本标注容器初始化成功');
     skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
     firstPersonScene.add(skyDome);
     
-    // 添加灯光
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    // 添加环境光
+    const ambientLight = new THREE.AmbientLight(0x222244, 0.4);
     firstPersonScene.add(ambientLight);
     
-    // 移除雾效效果
+    // 添加三个动态点光源（对应三颗恒星）
+    sunLight = new THREE.PointLight(0xff6600, 2, 600);
+    sunLight.position.set(0, 100, 0);
+    sunLight.castShadow = true;
+    firstPersonScene.add(sunLight);
+    
+    sunLight2 = new THREE.PointLight(0x0066ff, 1.5, 500);
+    sunLight2.position.set(100, 0, 0);
+    firstPersonScene.add(sunLight2);
+    
+    sunLight3 = new THREE.PointLight(0xffff00, 1.2, 450);
+    sunLight3.position.set(0, 0, 100);
+    firstPersonScene.add(sunLight3);
+    
+    // 添加大气雾效
+    atmosphericFog = new THREE.FogExp2(0x000022, 0.002);
+    firstPersonScene.fog = atmosphericFog;
     
     // 添加星星背景
     createStarField();
@@ -2073,27 +2076,84 @@ let starField = null;
 // 创建星星背景
 function createStarField() {
     const starGeometry = new THREE.BufferGeometry();
-    const starCount = 1000;
+    const starCount = 3000; // 增加星星数量
     const positions = new Float32Array(starCount * 3);
+    const colors = new Float32Array(starCount * 3);
+    const sizes = new Float32Array(starCount);
     
     for (let i = 0; i < starCount * 3; i += 3) {
+        const index = i / 3;
         // 在球面上随机分布星星
         const theta = Math.random() * Math.PI * 2;
         const phi = Math.acos(2 * Math.random() - 1);
-        const radius = 490;
+        const radius = 480 + Math.random() * 10; // 稍微随机的半径
         
         positions[i] = radius * Math.sin(phi) * Math.cos(theta);
         positions[i + 1] = radius * Math.sin(phi) * Math.sin(theta);
         positions[i + 2] = radius * Math.cos(phi);
+        
+        // 随机星星颜色（白色、淡蓝色、淡黄色）
+        const colorType = Math.random();
+        let r, g, b;
+        if (colorType < 0.7) {
+            // 白色星星
+            r = g = b = 0.9 + Math.random() * 0.1;
+        } else if (colorType < 0.85) {
+            // 蓝色星星
+            r = 0.7 + Math.random() * 0.3;
+            g = 0.8 + Math.random() * 0.2;
+            b = 1.0;
+        } else {
+            // 黄色/橙色星星
+            r = 1.0;
+            g = 0.8 + Math.random() * 0.2;
+            b = 0.6 + Math.random() * 0.2;
+        }
+        
+        colors[i] = r;
+        colors[i + 1] = g;
+        colors[i + 2] = b;
+        
+        // 随机星星大小
+        sizes[index] = 0.5 + Math.random() * 2.0;
     }
     
     starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    starGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    starGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
     
-    const starMaterial = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 2,
+    // 使用自定义着色器材质，实现更真实的星星效果
+    const starMaterial = new THREE.ShaderMaterial({
+        uniforms: {},
+        vertexShader: `
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            
+            void main() {
+                vColor = color;
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = size * (300.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vColor;
+            
+            void main() {
+                float distanceToCenter = distance(gl_PointCoord, vec2(0.5, 0.5));
+                if (distanceToCenter > 0.5) {
+                    discard;
+                }
+                
+                float alpha = 1.0 - smoothstep(0.0, 0.5, distanceToCenter);
+                alpha *= alpha; // 更柔和的边缘
+                gl_FragColor = vec4(vColor, alpha * 0.9);
+            }
+        `,
         transparent: true,
-        opacity: 0.8
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
     });
     
     starField = new THREE.Points(starGeometry, starMaterial);
@@ -2446,6 +2506,116 @@ function updateStarsInFirstPersonView(planetP) {
     
     // 更新地面亮度
     updateGroundBrightness();
+    
+    // 更新动态点光源的位置和强度
+    updateDynamicLights(stars, planetP);
+    
+    // 更新大气效果
+    updateAtmosphere(stars, planetP);
+}
+
+// 更新动态点光源
+function updateDynamicLights(stars, planetP) {
+    if (!sunLight || !sunLight2 || !sunLight3) return;
+    
+    const lights = [sunLight, sunLight2, sunLight3];
+    
+    stars.forEach((star, index) => {
+        if (index >= lights.length) return;
+        
+        const light = lights[index];
+        const dx = star.x - planetP.x;
+        const dy = star.y - planetP.y;
+        const dz = star.z - planetP.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        // 将恒星位置转换为天球坐标系
+        const latitude = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+        let longitude = Math.atan2(dx, dz);
+        
+        // 应用天穹旋转
+        const skyRadius = 100; // 光源距离更近以产生更真实的光照
+        let x = skyRadius * Math.cos(latitude) * Math.sin(longitude);
+        let y = skyRadius * Math.sin(latitude);
+        let z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
+        
+        const cos = Math.cos(skyRotation);
+        const sin = Math.sin(skyRotation);
+        const yRotated = y * cos - z * sin;
+        const zRotated = y * sin + z * cos;
+        
+        y = yRotated;
+        z = zRotated;
+        
+        // 更新光源位置
+        light.position.set(x, y, z);
+        
+        // 根据距离调整光源强度 - 距离越近越亮
+        const baseIntensity = index === 0 ? 2 : (index === 1 ? 1.5 : 1.2);
+        const intensityScale = Math.max(0.1, Math.min(3, 150 / distance));
+        light.intensity = baseIntensity * intensityScale;
+        
+        // 根据恒星质量设置光源颜色
+        const starColor = new THREE.Color(getSpectralColor(star.mass));
+        light.color.copy(starColor);
+        
+        // 如果恒星在地面以下，减弱光照
+        if (y < -5) {
+            light.intensity *= 0.3;
+        }
+    });
+}
+
+// 更新大气效果
+function updateAtmosphere(stars, planetP) {
+    if (!skyDome || !atmosphericFog) return;
+    
+    let totalBrightness = 0;
+    let dominantColor = new THREE.Color(0x000011);
+    
+    stars.forEach((star, index) => {
+        const dx = star.x - planetP.x;
+        const dy = star.y - planetP.y;
+        const dz = star.z - planetP.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        // 计算恒星高度角
+        const latitude = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+        
+        // 只有在地平线以上的恒星才影响大气
+        if (latitude > -0.2) {
+            const starBrightness = Math.max(0, Math.min(2, 100 / distance));
+            totalBrightness += starBrightness;
+            
+            // 混合恒星颜色
+            const starColor = new THREE.Color(getSpectralColor(star.mass));
+            dominantColor.lerp(starColor, starBrightness / (totalBrightness + 0.1));
+        }
+    });
+    
+    // 更新天空颜色
+    const skyBaseColor = new THREE.Color(0x000022);
+    const skySunsetColor = new THREE.Color(0xff6633);
+    const skyDayColor = dominantColor.clone().multiplyScalar(0.5);
+    
+    const skyColor = new THREE.Color();
+    if (totalBrightness > 0.5) {
+        // 白天 - 混合主恒星颜色
+        skyColor.lerpColors(skyBaseColor, skyDayColor, Math.min(1, totalBrightness / 2));
+    } else if (totalBrightness > 0.1) {
+        // 黄昏/黎明 - 橙红色天空
+        skyColor.lerpColors(skyBaseColor, skySunsetColor, totalBrightness / 0.5);
+    } else {
+        // 夜晚 - 深色天空
+        skyColor.copy(skyBaseColor);
+    }
+    
+    skyDome.material.color.copy(skyColor);
+    
+    // 更新雾效
+    const fogColor = skyColor.clone().multiplyScalar(0.8);
+    atmosphericFog.color.copy(fogColor);
+    atmosphericFog.density = 0.001 + totalBrightness * 0.001;
 }
 
 // 计算总亮度的函数（不依赖UI更新）
@@ -3156,6 +3326,46 @@ function drawFirstPersonControls() {
 }
 
 // 切换第一视角
+function resetFirstPersonScene() {
+    console.log('重置第一视角场景...');
+    
+    // 清理现有场景
+    if (firstPersonScene) {
+        while(firstPersonScene.children.length > 0) {
+            firstPersonScene.remove(firstPersonScene.children[0]);
+        }
+    }
+    
+    // 清理渲染器DOM
+    if (firstPersonRenderer && firstPersonRenderer.domElement) {
+        if (firstPersonRenderer.domElement.parentElement) {
+            firstPersonRenderer.domElement.parentElement.removeChild(firstPersonRenderer.domElement);
+        }
+    }
+    
+    // 清理标签容器
+    if (labelContainer && labelContainer.parentElement) {
+        labelContainer.parentElement.removeChild(labelContainer);
+    }
+    
+    // 重置所有变量
+    firstPersonScene = null;
+    firstPersonCamera = null;
+    firstPersonRenderer = null;
+    cameraContainer = null;
+    skyDome = null;
+    ground = null;
+    starObjects = [];
+    starLabels = [];
+    labelContainer = null;
+    starField = null;
+    sunLight = null;
+    sunLight2 = null;
+    sunLight3 = null;
+    atmosphericFog = null;
+    firstPersonInitialized = false;
+}
+
 function toggleFirstPersonView() {
     isFirstPersonView = !isFirstPersonView;
     console.log('切换第一视角模式:', isFirstPersonView ? '进入' : '退出');
@@ -3165,7 +3375,9 @@ function toggleFirstPersonView() {
     const infoContent = document.getElementById('info-content');
     
     if (isFirstPersonView) {
-        // 进入第一视角模式
+        // 进入第一视角模式 - 先重置场景以确保干净的初始化
+        resetFirstPersonScene();
+        
         centerBody = null; // 取消任何聚焦
         document.body.classList.add('first-person-mode');
         btn.classList.add('active');
@@ -3184,15 +3396,7 @@ function toggleFirstPersonView() {
         // 确保控制面板在第一视角模式下仍然可见
         document.getElementById('controls-container').style.display = 'block';
         
-        // 显示第一视角渲染器DOM元素
-        if (firstPersonRenderer && firstPersonRenderer.domElement) {
-            firstPersonRenderer.domElement.style.display = 'block';
-        }
-        
-        // 显示文本标注容器
-        if (labelContainer) {
-            labelContainer.style.display = 'block';
-        }
+        // 第一视角场景会在 animate 函数中自动初始化
     } else {
         // 退出第一视角模式
         document.body.classList.remove('first-person-mode');
