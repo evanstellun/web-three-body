@@ -467,6 +467,7 @@ class Nebula {
 
 let nebulas = [];
 let nebulaIdCounter = 0;
+const greekLetters = ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω'];
 
 // 初始化天体
 // 初始化天体（保存初始状态）
@@ -1024,12 +1025,15 @@ function checkCollisions() {
                     const nebulaMass = totalMass * 0.8;
                     
                     // 创建恒星核（20%质量）
-                    let coreName = 'Core' + nebulaIdCounter;
-                    let coreCounter = 1;
+                    let coreName = greekLetters[nebulaIdCounter % greekLetters.length];
+                    let coreCounter = Math.floor(nebulaIdCounter / greekLetters.length) + 1;
                     let testCoreName = coreName;
-                    while (bodies.some(b => b.name === testCoreName)) {
+                    if (coreCounter > 1) {
                         testCoreName = coreName + coreCounter;
+                    }
+                    while (bodies.some(b => b.name === testCoreName)) {
                         coreCounter++;
+                        testCoreName = coreName + coreCounter;
                     }
                     coreName = testCoreName;
                     
