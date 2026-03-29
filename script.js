@@ -380,7 +380,7 @@ class CelestialBody {
 }
 
 class Nebula {
-    constructor(id, x, y, z, mass, color1, color2) {
+    constructor(id, x, y, z, mass, color1, color2, coreBody) {
         this.id = id;
         this.x = x;
         this.y = y;
@@ -412,10 +412,19 @@ class Nebula {
                 rotation: Math.random() * Math.PI * 2
             });
         }
+        
+        this.coreBody = coreBody;
     }
     
     update(dt) {
         this.age += dt;
+        
+        // 跟随恒星核移动
+        if (this.coreBody) {
+            this.x = this.coreBody.x;
+            this.y = this.coreBody.y;
+            this.z = this.coreBody.z;
+        }
         
         if (!this.isStable) {
             const radiusDiff = this.targetRadius - this.currentRadius;
@@ -922,14 +931,42 @@ function checkCollisions() {
                     const newX = (body1.x * body1.mass + body2.x * body2.mass) / totalMass;
                     const newY = (body1.y * body1.mass + body2.y * body2.mass) / totalMass;
                     const newZ = (body1.z * body1.mass + body2.z * body2.mass) / totalMass;
+                    const newVx = (body1.vx * body1.mass + body2.vx * body2.mass) / totalMass;
+                    const newVy = (body1.vy * body1.mass + body2.vy * body2.mass) / totalMass;
+                    const newVz = (body1.vz * body1.mass + body2.vz * body2.mass) / totalMass;
                     
-                    // 创建星云
+                    const coreMass = totalMass * 0.2;
+                    const nebulaMass = totalMass * 0.8;
+                    
+                    // 创建恒星核（20%质量）
+                    let coreName = 'Core' + nebulaIdCounter;
+                    let coreCounter = 1;
+                    let testCoreName = coreName;
+                    while (bodies.some(b => b.name === testCoreName)) {
+                        testCoreName = coreName + coreCounter;
+                        coreCounter++;
+                    }
+                    coreName = testCoreName;
+                    
+                    const coreColor = getSpectralColor(coreMass);
+                    const coreBody = new CelestialBody(
+                        coreName,
+                        coreMass,
+                        newX, newY, newZ,
+                        newVx, newVy, newVz,
+                        coreColor
+                    );
+                    bodies.push(coreBody);
+                    trails[coreName] = [];
+                    
+                    // 创建星云（80%质量）
                     const nebula = new Nebula(
                         nebulaIdCounter++,
                         newX, newY, newZ,
-                        totalMass,
+                        nebulaMass,
                         body1.color,
-                        body2.color
+                        body2.color,
+                        coreBody
                     );
                     nebulas.push(nebula);
                     
@@ -2860,6 +2897,13 @@ function updateNebulasInFirstPersonView(planetP) {
         y = skyRadius * Math.sin(latitude);
         z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
         
+        const cos = Math.cos(skyRotation);
+        const sin = Math.sin(skyRotation);
+        const yRotated = y * cos - z * sin;
+        const zRotated = y * sin + z * cos;
+        y = yRotated;
+        z = zRotated;
+        
         nebulaSize = nebula.currentRadius * 0.25;
         
         // 解析星云颜色
@@ -2937,7 +2981,7 @@ function updateNebulasInFirstPersonView(planetP) {
             side: THREE.DoubleSide
         });
         
-        // 创建多层星云效果，更像真实星云（扁平、弥散）
+        // 创建多层星云效果，使用简单球体，避免地平线附近变形
         const layers = 4;
         for (let layer = 0; layer < layers; layer++) {
             const layerOffset = nebula.layerOffsets[layer];
@@ -2945,37 +2989,11 @@ function updateNebulasInFirstPersonView(planetP) {
             const layerSize = nebulaSize * layerScale;
             const layerAlpha = 1.0 - (layer / layers) * 0.5;
             
-            const offsetX = layerOffset.x * layerSize * 0.5;
-            const offsetY = layerOffset.y * layerSize * 0.3;
-            const offsetZ = layerOffset.z * layerSize * 0.5;
+            const offsetX = layerOffset.x * layerSize * 0.3;
+            const offsetY = layerOffset.y * layerSize * 0.2;
+            const offsetZ = layerOffset.z * layerSize * 0.3;
             
-            // 使用扁椭球体，而不是完美球体
-            const xScale = 1.0 + Math.sin(layerOffset.rotation * 2.0) * 0.3;
-            const yScale = 0.6 + Math.cos(layerOffset.rotation * 3.0) * 0.2;
-            const zScale = 0.9 + Math.sin(layerOffset.rotation) * 0.2;
-            
-            const layerGeometry = new THREE.SphereGeometry(layerSize, 20, 16);
-            
-            // 变形几何体，创造不规则形状
-            const positions = layerGeometry.attributes.position.array;
-            for (let i = 0; i < positions.length; i += 3) {
-                positions[i] *= xScale;
-                positions[i + 1] *= yScale;
-                positions[i + 2] *= zScale;
-                
-                const nx = positions[i] / layerSize;
-                const ny = positions[i + 1] / layerSize;
-                const nz = positions[i + 2] / layerSize;
-                
-                const noise = Math.sin(nx * 5.0 + layerOffset.rotation) * 
-                              Math.cos(ny * 7.0 + layerOffset.rotation) * 0.15;
-                
-                positions[i] *= (1.0 + noise);
-                positions[i + 1] *= (1.0 + noise * 0.8);
-                positions[i + 2] *= (1.0 + noise);
-            }
-            layerGeometry.attributes.position.needsUpdate = true;
-            layerGeometry.computeVertexNormals();
+            const layerGeometry = new THREE.SphereGeometry(layerSize, 24, 20);
             
             const layerMaterial = new THREE.ShaderMaterial({
                 uniforms: {
@@ -3375,15 +3393,7 @@ function renderFirstPersonScene() {
         });
     }
     
-    // 让星云也随天穹一起旋转
-    if (nebulaObjects && nebulaObjects.length > 0) {
-        nebulaObjects.forEach(nebulaObj => {
-            if (nebulaObj.mesh) {
-                // 应用与天穹相同的旋转角度
-                nebulaObj.mesh.rotation.x = skyRotation;
-            }
-        });
-    }
+    // 星云位置已经在 updateNebulasInFirstPersonView 中应用了 skyRotation，不需要再旋转 mesh
     
     // 渲染场景
     firstPersonRenderer.render(firstPersonScene, firstPersonCamera);
@@ -4578,10 +4588,27 @@ function showStarInfo() {
                                 <strong>星云 ${nebula.id}</strong>
                                 <span style="margin-left: 8px; font-size: 12px; color: #ff6666;">(${statusText})</span>
                                 <div style="font-size: 12px; margin-top: 4px;">
-                                    质量: ${nebula.mass.toFixed(0)}<br>
-                                    半径: ${nebula.currentRadius.toFixed(1)} 单位<br>
+                                    星云质量: ${nebula.mass.toFixed(0)}<br>
+                                    星云半径: ${nebula.currentRadius.toFixed(1)} 单位<br>
                                     温度: ${nebula.temperature.toFixed(0)} K<br>
                                     年龄: ${nebula.age.toFixed(1)} 刻
+                        `;
+                        
+                        if (nebula.coreBody) {
+                            const coreSpectralType = getSpectralType(nebula.coreBody.mass) || { name: '未知' };
+                            const coreColor = getSpectralColor(nebula.coreBody.mass) || '#ffffff';
+                            celestialBodiesHTML += `
+                                    <div style="margin-top: 6px; padding: 6px; background: rgba(255, 200, 100, 0.15); border-radius: 3px;">
+                                        <strong style="color: ${coreColor};">恒星核 ${nebula.coreBody.name}</strong>
+                                        <span style="margin-left: 6px; font-size: 11px;">(${coreSpectralType.name}型)</span>
+                                        <div style="font-size: 11px; margin-top: 2px;">
+                                            质量: ${nebula.coreBody.mass.toFixed(0)}
+                                        </div>
+                                    </div>
+                            `;
+                        }
+                        
+                        celestialBodiesHTML += `
                                 </div>
                             </div>
                         `;
