@@ -1,6 +1,8 @@
 # Симулятор цивилизации «Тело»
 
-\[!\[Platform]\(https\://img.shields.io/badge/platformWindows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]\(https\://www\.microsoft.com/windows)
+\[!\[License]\(https\://img.shields.io/badge/license-MIT-green.svg)]\(LICENSE)
+
+\[!\[Platform]\(https\://img.shields.io/badge/platformWindows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]\(https\://www\.microsoft.com/windows) 
 
 \[!\[Status]\(https\://img.shields.io/badge/status-active-brightgreen.svg)]\(https\://github.com)
 
