@@ -2860,13 +2860,6 @@ function updateNebulasInFirstPersonView(planetP) {
         y = skyRadius * Math.sin(latitude);
         z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
         
-        const cos = Math.cos(skyRotation);
-        const sin = Math.sin(skyRotation);
-        const yRotated = y * cos - z * sin;
-        const zRotated = y * sin + z * cos;
-        y = yRotated;
-        z = zRotated;
-        
         nebulaSize = nebula.currentRadius * 0.25;
         
         // 解析星云颜色
@@ -3378,6 +3371,16 @@ function renderFirstPersonScene() {
             if (starObj.mesh) {
                 // 应用与天穹相同的旋转角度
                 starObj.mesh.rotation.x = skyRotation;
+            }
+        });
+    }
+    
+    // 让星云也随天穹一起旋转
+    if (nebulaObjects && nebulaObjects.length > 0) {
+        nebulaObjects.forEach(nebulaObj => {
+            if (nebulaObj.mesh) {
+                // 应用与天穹相同的旋转角度
+                nebulaObj.mesh.rotation.x = skyRotation;
             }
         });
     }
