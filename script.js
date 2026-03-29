@@ -923,9 +923,94 @@ function checkCollisions() {
 
                 // 检查是否是行星P与其他天体碰撞
                 const isPlanetPCollision = body1.name === 'p' || body2.name === 'p';
-                const areBothStars = body1.name !== 'p' && body2.name !== 'p';
                 
-                if (areBothStars) {
+                // 检查是否有天体是星云核
+                let nebulaWithCore = null;
+                let nonCoreBody = null;
+                let coreBody = null;
+                
+                for (let nebula of nebulas) {
+                    if (nebula.coreBody === body1) {
+                        nebulaWithCore = nebula;
+                        coreBody = body1;
+                        nonCoreBody = body2;
+                        break;
+                    }
+                    if (nebula.coreBody === body2) {
+                        nebulaWithCore = nebula;
+                        coreBody = body2;
+                        nonCoreBody = body1;
+                        break;
+                    }
+                }
+                
+                if (nebulaWithCore && !isPlanetPCollision) {
+                    // 恒星与星云核碰撞，更新星云数据
+                    const totalMass = coreBody.mass + nonCoreBody.mass;
+                    const newX = (coreBody.x * coreBody.mass + nonCoreBody.x * nonCoreBody.mass) / totalMass;
+                    const newY = (coreBody.y * coreBody.mass + nonCoreBody.y * nonCoreBody.mass) / totalMass;
+                    const newZ = (coreBody.z * coreBody.mass + nonCoreBody.z * nonCoreBody.mass) / totalMass;
+                    const newVx = (coreBody.vx * coreBody.mass + nonCoreBody.vx * nonCoreBody.mass) / totalMass;
+                    const newVy = (coreBody.vy * coreBody.mass + nonCoreBody.vy * nonCoreBody.mass) / totalMass;
+                    const newVz = (coreBody.vz * coreBody.mass + nonCoreBody.vz * nonCoreBody.mass) / totalMass;
+                    
+                    const coreMass = totalMass * 0.2;
+                    const nebulaMass = nebulaWithCore.mass + totalMass * 0.8;
+                    
+                    // 更新星云核
+                    coreBody.mass = coreMass;
+                    coreBody.x = newX;
+                    coreBody.y = newY;
+                    coreBody.z = newZ;
+                    coreBody.vx = newVx;
+                    coreBody.vy = newVy;
+                    coreBody.vz = newVz;
+                    coreBody.color = getSpectralColor(coreMass);
+                    coreBody.radius = Math.cbrt(coreMass) * 0.5;
+                    
+                    // 更新星云
+                    nebulaWithCore.mass = nebulaMass;
+                    nebulaWithCore.maxRadius = Math.cbrt(nebulaMass) * 15;
+                    nebulaWithCore.targetRadius = nebulaWithCore.maxRadius;
+                    nebulaWithCore.isStable = false;
+                    nebulaWithCore.temperature = Math.max(nebulaWithCore.temperature, 10000);
+                    
+                    // 混合颜色
+                    const r1 = parseInt(nebulaWithCore.color1.slice(1, 3), 16);
+                    const g1 = parseInt(nebulaWithCore.color1.slice(3, 5), 16);
+                    const b1 = parseInt(nebulaWithCore.color1.slice(5, 7), 16);
+                    
+                    let r2, g2, b2;
+                    if (nonCoreBody.color.startsWith('#')) {
+                        r2 = parseInt(nonCoreBody.color.slice(1, 3), 16);
+                        g2 = parseInt(nonCoreBody.color.slice(3, 5), 16);
+                        b2 = parseInt(nonCoreBody.color.slice(5, 7), 16);
+                    } else {
+                        r2 = g2 = b2 = 200;
+                    }
+                    
+                    const newR = Math.round((r1 + r2) / 2);
+                    const newG = Math.round((g1 + g2) / 2);
+                    const newB = Math.round((b1 + b2) / 2);
+                    nebulaWithCore.color2 = `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+                    
+                    // 移除碰撞的非核心恒星
+                    const indexToRemove = bodies.indexOf(nonCoreBody);
+                    if (indexToRemove !== -1) {
+                        bodies.splice(indexToRemove, 1);
+                        delete trails[nonCoreBody.name];
+                        
+                        if (centerBody === nonCoreBody) centerBody = null;
+                        if (selectedBody === nonCoreBody) {
+                            selectedBody = null;
+                            document.getElementById('body-info').style.display = 'none';
+                        }
+                    }
+                    
+                    message = `${nonCoreBody.name}撞击星云${nebulaWithCore.id}，星云增大！`;
+                    i--;
+                    break;
+                } else if (!isPlanetPCollision) {
                     // 两颗恒星相撞，创建星云
                     const totalMass = body1.mass + body2.mass;
                     const newX = (body1.x * body1.mass + body2.x * body2.mass) / totalMass;
@@ -949,14 +1034,14 @@ function checkCollisions() {
                     coreName = testCoreName;
                     
                     const coreColor = getSpectralColor(coreMass);
-                    const coreBody = new CelestialBody(
+                    const newCoreBody = new CelestialBody(
                         coreName,
                         coreMass,
                         newX, newY, newZ,
                         newVx, newVy, newVz,
                         coreColor
                     );
-                    bodies.push(coreBody);
+                    bodies.push(newCoreBody);
                     trails[coreName] = [];
                     
                     // 创建星云（80%质量）
@@ -966,7 +1051,7 @@ function checkCollisions() {
                         nebulaMass,
                         body1.color,
                         body2.color,
-                        coreBody
+                        newCoreBody
                     );
                     nebulas.push(nebula);
                     
@@ -1935,11 +2020,18 @@ function drawNebulas() {
             projected.x, projected.y, radius
         );
         
+        // 计算混合颜色，让两种颜色更接近
+        const mixedR = Math.round(r1 * 0.7 + r2 * 0.3);
+        const mixedG = Math.round(g1 * 0.7 + g2 * 0.3);
+        const mixedB = Math.round(b1 * 0.7 + b2 * 0.3);
+        const mixedR2 = Math.round(r1 * 0.3 + r2 * 0.7);
+        const mixedG2 = Math.round(g1 * 0.3 + g2 * 0.7);
+        const mixedB2 = Math.round(b1 * 0.3 + b2 * 0.7);
+        
         const tempFactor = Math.max(0.3, Math.min(1, nebula.temperature / 10000));
-        gradient.addColorStop(0, `rgba(${r1}, ${g1}, ${b1}, ${0.8 * tempFactor})`);
-        gradient.addColorStop(0.3, `rgba(${Math.round((r1 + r2) / 2)}, ${Math.round((g1 + g2) / 2)}, ${Math.round((b1 + b2) / 2)}, ${0.6 * tempFactor})`);
-        gradient.addColorStop(0.6, `rgba(${r2}, ${g2}, ${b2}, ${0.4 * tempFactor})`);
-        gradient.addColorStop(1, `rgba(${r2}, ${g2}, ${b2}, 0)`);
+        gradient.addColorStop(0, `rgba(${mixedR}, ${mixedG}, ${mixedB}, ${0.7 * tempFactor})`);
+        gradient.addColorStop(0.5, `rgba(${Math.round((mixedR + mixedR2) / 2)}, ${Math.round((mixedG + mixedG2) / 2)}, ${Math.round((mixedB + mixedB2) / 2)}, ${0.5 * tempFactor})`);
+        gradient.addColorStop(1, `rgba(${mixedR2}, ${mixedG2}, ${mixedB2}, 0)`);
         
         ctx.fillStyle = gradient;
         ctx.beginPath();
@@ -3059,7 +3151,10 @@ function updateNebulasInFirstPersonView(planetP) {
                         
                         float centerDist = length(vPosition);
                         
-                        vec3 color = mix(color1, color2, distanceToCenter);
+                        // 混合两种颜色，让它们更接近
+                        vec3 mixedColor1 = color1 * 0.7 + color2 * 0.3;
+                        vec3 mixedColor2 = color1 * 0.3 + color2 * 0.7;
+                        vec3 color = mix(mixedColor1, mixedColor2, distanceToCenter);
                         
                         float coreFactor = 1.0 - distanceToCenter;
                         coreFactor = pow(coreFactor, 0.25);
