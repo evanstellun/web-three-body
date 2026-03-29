@@ -5,6 +5,10 @@
 [![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com)
 [![Tech](https://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg)](https://developer.mozilla.org/)
 
+[English Version Here](README_EN.md)
+
+[Русская версия здесь](README_RU.md)
+
 ## 项目介绍
 
 三体文明模拟器是一个基于Web的交互式3D模拟器，融合了刘慈欣科幻小说《三体》的世界观与真实的三体运动物理规律。该项目不仅能够模拟混沌的三体运动系统，更创造性地将文明的兴衰与宇宙环境的变化相结合，让用户在体验天体运行之美的同时，思考文明与生存的意义。
