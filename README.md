@@ -1,12 +1,10 @@
-三体文明模拟器
-[!\[Platform\](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg null)](https://www.microsoft.com/windows)
-[!\[Status\](https://img.shields.io/badge/status-active-brightgreen.svg null)](https://github.com)
-[!\[Tech\](https://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg null)](https://developer.mozilla.org/)
-==================================================================================================================================
+# 三体文明模拟器
 
-[English Version Here](README_EN.md)
+\[!\[Platform]\(https\://img.shields.io/badge/platformWindows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]\(https\://www\.microsoft.com/windows)
 
-[Русская версия здесь](README_RU.md)
+\[!\[Status]\(https\://img.shields.io/badge/status-active-brightgreen.svg)]\(https\://github.com)
+
+\[!\[Tech]\(https\://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg)]\(https\://developer.mozilla.org/)
 
 ## 项目介绍
 
