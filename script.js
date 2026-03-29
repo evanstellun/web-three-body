@@ -2981,7 +2981,7 @@ function updateNebulasInFirstPersonView(planetP) {
             side: THREE.DoubleSide
         });
         
-        // 创建多层星云效果，使用简单球体，避免地平线附近变形
+        // 创建多层星云效果，更像真实星云（扁平、弥散）
         const layers = 4;
         for (let layer = 0; layer < layers; layer++) {
             const layerOffset = nebula.layerOffsets[layer];
@@ -2989,11 +2989,37 @@ function updateNebulasInFirstPersonView(planetP) {
             const layerSize = nebulaSize * layerScale;
             const layerAlpha = 1.0 - (layer / layers) * 0.5;
             
-            const offsetX = layerOffset.x * layerSize * 0.3;
-            const offsetY = layerOffset.y * layerSize * 0.2;
-            const offsetZ = layerOffset.z * layerSize * 0.3;
+            const offsetX = layerOffset.x * layerSize * 0.5;
+            const offsetY = layerOffset.y * layerSize * 0.3;
+            const offsetZ = layerOffset.z * layerSize * 0.5;
             
-            const layerGeometry = new THREE.SphereGeometry(layerSize, 24, 20);
+            // 使用扁椭球体，形状在天球上保持固定
+            const xScale = 1.3;
+            const yScale = 0.7;
+            const zScale = 1.1;
+            
+            const layerGeometry = new THREE.SphereGeometry(layerSize, 20, 16);
+            
+            // 变形几何体，创造固定的不规则形状
+            const positions = layerGeometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i] *= xScale;
+                positions[i + 1] *= yScale;
+                positions[i + 2] *= zScale;
+                
+                const nx = positions[i] / layerSize;
+                const ny = positions[i + 1] / layerSize;
+                const nz = positions[i + 2] / layerSize;
+                
+                const noise = Math.sin(nx * 5.0 + layerOffset.x * 10) * 
+                              Math.cos(ny * 7.0 + layerOffset.y * 10) * 0.15;
+                
+                positions[i] *= (1.0 + noise);
+                positions[i + 1] *= (1.0 + noise * 0.8);
+                positions[i + 2] *= (1.0 + noise);
+            }
+            layerGeometry.attributes.position.needsUpdate = true;
+            layerGeometry.computeVertexNormals();
             
             const layerMaterial = new THREE.ShaderMaterial({
                 uniforms: {
@@ -3056,6 +3082,21 @@ function updateNebulasInFirstPersonView(planetP) {
             const layerMesh = new THREE.Mesh(layerGeometry, layerMaterial);
             layerMesh.position.set(x + offsetX, y + offsetY, z + offsetZ);
             layerMesh.renderOrder = -3 + layer;
+            
+            // 让星云扁平面始终垂直于观察者视线
+            const nebulaPos = new THREE.Vector3(x + offsetX, y + offsetY, z + offsetZ);
+            const observerPos = new THREE.Vector3(0, 10, 0);
+            
+            // 计算从星云到观察者的向量（视线方向）
+            const viewDir = new THREE.Vector3();
+            viewDir.subVectors(observerPos, nebulaPos).normalize();
+            
+            // 星云的原始最短轴是Y轴（0.7），让这个轴与视线对齐
+            // 构造旋转矩阵，让Y轴指向视线方向
+            const yAxis = new THREE.Vector3(0, 1, 0);
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromUnitVectors(yAxis, viewDir);
+            layerMesh.setRotationFromQuaternion(quaternion);
             
             firstPersonScene.add(layerMesh);
             newNebulaObjects.push({
