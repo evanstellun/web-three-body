@@ -374,10 +374,90 @@ class CelestialBody {
         this.vy = vy;
         this.vz = vz;
         this.color = color;
-        // 减小天体半径（质量不变）
         this.radius = Math.cbrt(mass) * 0.5;
+        this.baseTemperature = 0;
     }
 }
+
+class Nebula {
+    constructor(id, x, y, z, mass, color1, color2) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.mass = mass;
+        
+        this.maxRadius = Math.cbrt(mass) * 15;
+        this.currentRadius = 5;
+        this.targetRadius = this.maxRadius;
+        
+        this.expansionSpeed = Math.sqrt(mass) * 0.15;
+        this.dragCoefficient = 0.999;
+        
+        this.color1 = color1;
+        this.color2 = color2;
+        
+        this.temperature = 10000;
+        this.particleCount = Math.floor(Math.sqrt(mass) * 10);
+        this.age = 0;
+        this.isStable = false;
+        
+        this.layerOffsets = [];
+        for (let i = 0; i < 4; i++) {
+            this.layerOffsets.push({
+                x: (Math.random() - 0.5) * 0.5,
+                y: (Math.random() - 0.5) * 0.3,
+                z: (Math.random() - 0.5) * 0.5,
+                scale: 0.6 + (i / 4) * 0.8,
+                rotation: Math.random() * Math.PI * 2
+            });
+        }
+    }
+    
+    update(dt) {
+        this.age += dt;
+        
+        if (!this.isStable) {
+            const radiusDiff = this.targetRadius - this.currentRadius;
+            
+            if (radiusDiff > 0.1) {
+                const acceleration = radiusDiff * 0.001;
+                this.expansionSpeed += acceleration;
+                this.expansionSpeed *= this.dragCoefficient;
+                this.currentRadius += this.expansionSpeed * dt;
+                
+                if (this.currentRadius > this.targetRadius) {
+                    this.currentRadius = this.targetRadius;
+                    this.expansionSpeed = 0;
+                }
+            } else {
+                this.isStable = true;
+                this.currentRadius = this.targetRadius;
+            }
+        }
+        
+        this.temperature *= 0.999;
+    }
+    
+    getDensity(distance) {
+        if (distance > this.currentRadius) return 0;
+        const normalizedDist = distance / this.currentRadius;
+        return Math.exp(-normalizedDist * normalizedDist * 3) * (this.mass / 10000);
+    }
+    
+    getDragEffect(distance) {
+        const density = this.getDensity(distance);
+        return density * 0.01;
+    }
+    
+    getHeatingEffect(distance) {
+        const density = this.getDensity(distance);
+        return density * this.temperature * 0.001;
+    }
+}
+
+let nebulas = [];
+let nebulaIdCounter = 0;
 
 // 初始化天体
 // 初始化天体（保存初始状态）
@@ -583,6 +663,10 @@ function randomizeBodies() {
     // 重置碰撞相关状态
     collisions = []; // 清空碰撞数组
     
+    // 重置星云
+    nebulas = [];
+    nebulaIdCounter = 0;
+    
     // 重置updateStarInfo调用计数器
     if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
         updateStarInfo.callCount = 0;
@@ -704,6 +788,10 @@ function resetSimulation() {
     // 重置碰撞相关状态
     collisions = []; // 清空碰撞数组
     
+    // 重置星云
+    nebulas = [];
+    nebulaIdCounter = 0;
+    
     // 重置updateStarInfo调用计数器
     if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
         updateStarInfo.callCount = 0;
@@ -824,68 +912,114 @@ function checkCollisions() {
                     lastCivilizationRecorded = true;
                 }
 
-                // 合并天体
-                const totalMass = body1.mass + body2.mass;
-                const newX = (body1.x * body1.mass + body2.x * body2.mass) / totalMass;
-                const newY = (body1.y * body1.mass + body2.y * body2.mass) / totalMass;
-                const newZ = (body1.z * body1.mass + body2.z * body2.mass) / totalMass;
-                const newVx = (body1.vx * body1.mass + body2.vx * body2.mass) / totalMass;
-                const newVy = (body1.vy * body1.mass + body2.vy * body2.mass) / totalMass;
-                const newVz = (body1.vz * body1.mass + body2.vz * body2.mass) / totalMass;
-
-                // 创建新的标准天体
-                let newName = '';
-                if (body1.name.length === 1 && body2.name.length === 1) {
-                    newName = String.fromCharCode(body1.name.charCodeAt(0) + body2.name.charCodeAt(0));
-                } else {
-                    newName = 'New';
-                }
-
-                // 确保名称唯一
-                let counter = 1;
-                let testName = newName;
-                while (bodies.some(b => b.name === testName)) {
-                    testName = newName + counter;
-                    counter++;
-                }
-                newName = testName;
-
-                // 根据新质量计算恒星颜色（仅当合并后的天体质量足够大时视为恒星）
-                let newColor = body1.color;
-                if (totalMass >= 1000) {
-                    newColor = getSpectralColor(totalMass);
-                }
+                // 检查是否是行星P与其他天体碰撞
+                const isPlanetPCollision = body1.name === 'p' || body2.name === 'p';
+                const areBothStars = body1.name !== 'p' && body2.name !== 'p';
                 
-                const newBody = new CelestialBody(
-                    newName,
-                    totalMass,
-                    newX, newY, newZ,
-                    newVx, newVy, newVz,
-                    newColor
-                );
+                if (areBothStars) {
+                    // 两颗恒星相撞，创建星云
+                    const totalMass = body1.mass + body2.mass;
+                    const newX = (body1.x * body1.mass + body2.x * body2.mass) / totalMass;
+                    const newY = (body1.y * body1.mass + body2.y * body2.mass) / totalMass;
+                    const newZ = (body1.z * body1.mass + body2.z * body2.mass) / totalMass;
+                    
+                    // 创建星云
+                    const nebula = new Nebula(
+                        nebulaIdCounter++,
+                        newX, newY, newZ,
+                        totalMass,
+                        body1.color,
+                        body2.color
+                    );
+                    nebulas.push(nebula);
+                    
+                    // 移除碰撞的恒星
+                    bodies.splice(j, 1);
+                    bodies.splice(i, 1);
+                    
+                    // 清理轨迹
+                    delete trails[body1.name];
+                    delete trails[body2.name];
+                    
+                    // 如果聚焦或选中的天体被移除，重置
+                    if (centerBody === body1 || centerBody === body2) {
+                        centerBody = null;
+                    }
+                    if (selectedBody === body1 || selectedBody === body2) {
+                        selectedBody = null;
+                        document.getElementById('body-info').style.display = 'none';
+                    }
+                    
+                    // 更新消息
+                    message = `${body1.name}和${body2.name}相撞，形成星云！`;
+                    
+                    // 由于数组发生了变化，需要重新开始循环
+                    i--;
+                    break;
+                } else {
+                    // 行星P与恒星碰撞，使用原有的合并逻辑
+                    const totalMass = body1.mass + body2.mass;
+                    const newX = (body1.x * body1.mass + body2.x * body2.mass) / totalMass;
+                    const newY = (body1.y * body1.mass + body2.y * body2.mass) / totalMass;
+                    const newZ = (body1.z * body1.mass + body2.z * body2.mass) / totalMass;
+                    const newVx = (body1.vx * body1.mass + body2.vx * body2.mass) / totalMass;
+                    const newVy = (body1.vy * body1.mass + body2.vy * body2.mass) / totalMass;
+                    const newVz = (body1.vz * body1.mass + body2.vz * body2.mass) / totalMass;
 
-                // 移除碰撞的天体并添加新天体
-                bodies.splice(j, 1);
-                bodies.splice(i, 1);
-                bodies.push(newBody);
+                    // 创建新的标准天体
+                    let newName = '';
+                    if (body1.name.length === 1 && body2.name.length === 1) {
+                        newName = String.fromCharCode(body1.name.charCodeAt(0) + body2.name.charCodeAt(0));
+                    } else {
+                        newName = 'New';
+                    }
 
-                // 为新天体创建轨迹数组
-                trails[newName] = [];
+                    // 确保名称唯一
+                    let counter = 1;
+                    let testName = newName;
+                    while (bodies.some(b => b.name === testName)) {
+                        testName = newName + counter;
+                        counter++;
+                    }
+                    newName = testName;
 
-                // 如果聚焦的天体被移除，重置聚焦
-                if (centerBody === body1 || centerBody === body2) {
-                    centerBody = null;
+                    // 根据新质量计算恒星颜色（仅当合并后的天体质量足够大时视为恒星）
+                    let newColor = body1.color;
+                    if (totalMass >= 1000) {
+                        newColor = getSpectralColor(totalMass);
+                    }
+                    
+                    const newBody = new CelestialBody(
+                        newName,
+                        totalMass,
+                        newX, newY, newZ,
+                        newVx, newVy, newVz,
+                        newColor
+                    );
+
+                    // 移除碰撞的天体并添加新天体
+                    bodies.splice(j, 1);
+                    bodies.splice(i, 1);
+                    bodies.push(newBody);
+
+                    // 为新天体创建轨迹数组
+                    trails[newName] = [];
+
+                    // 如果聚焦的天体被移除，重置聚焦
+                    if (centerBody === body1 || centerBody === body2) {
+                        centerBody = null;
+                    }
+
+                    // 如果选中的天体被移除，重置选中
+                    if (selectedBody === body1 || selectedBody === body2) {
+                        selectedBody = null;
+                        document.getElementById('body-info').style.display = 'none';
+                    }
+
+                    // 由于数组发生了变化，需要重新开始循环
+                    i--;
+                    break;
                 }
-
-                // 如果选中的天体被移除，重置选中
-                if (selectedBody === body1 || selectedBody === body2) {
-                    selectedBody = null;
-                    document.getElementById('body-info').style.display = 'none';
-                }
-
-                // 由于数组发生了变化，需要重新开始循环
-                i--;
-                break;
             }
         }
     }
@@ -1240,8 +1374,27 @@ function calculatePlanetPTemperature() {
         const energy = 50 * body.mass / (distance * distance);
         totalEnergy += energy;
     }
-    if (totalEnergy === 0) return '--';
-    const temperatureK = 150 * Math.pow(totalEnergy, 0.25);
+    
+    // 添加星云的升温效果
+    let nebulaHeating = 0;
+    for (const nebula of nebulas) {
+        const dx = planetP.x - nebula.x;
+        const dy = planetP.y - nebula.y;
+        const dz = planetP.z - nebula.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        if (distance < nebula.currentRadius + planetP.radius) {
+            nebulaHeating += nebula.getHeatingEffect(distance);
+        }
+    }
+    
+    if (typeof planetP.baseTemperature !== 'undefined') {
+        nebulaHeating += planetP.baseTemperature * 0.1;
+    }
+    
+    if (totalEnergy === 0 && nebulaHeating === 0) return '--';
+    
+    const temperatureK = 150 * Math.pow(totalEnergy + nebulaHeating * 0.01, 0.25);
     const temperatureC = temperatureK - 273.15;
     return temperatureC.toFixed(2);
 }
@@ -1329,6 +1482,12 @@ function getCivilizationEra(existenceTime) {
 function updateBodiesPosition() {
     // 更新行星自转角度 - 每50刻旋转一圈
     const rotationSpeed = (2 * Math.PI) / 50; // 每刻旋转的角度
+    const dt = 0.01 * speedFactor;
+    
+    // 更新所有星云
+    for (let nebula of nebulas) {
+        nebula.update(dt);
+    }
     
     // 计算并应用引力
     for (let i = 0; i < bodies.length; i++) {
@@ -1343,17 +1502,50 @@ function updateBodiesPosition() {
             }
         }
 
+        // 应用星云的减速和升温效果
+        let totalDrag = 0;
+        let totalHeating = 0;
+        
+        for (let nebula of nebulas) {
+            const dx = bodies[i].x - nebula.x;
+            const dy = bodies[i].y - nebula.y;
+            const dz = bodies[i].z - nebula.z;
+            const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            
+            if (distance < nebula.currentRadius + bodies[i].radius) {
+                const drag = nebula.getDragEffect(distance);
+                const heating = nebula.getHeatingEffect(distance);
+                
+                totalDrag += drag;
+                totalHeating += heating;
+            }
+        }
+        
+        // 应用减速效果
+        if (totalDrag > 0) {
+            const dragFactor = Math.max(0, 1 - totalDrag * dt);
+            bodies[i].vx *= dragFactor;
+            bodies[i].vy *= dragFactor;
+            bodies[i].vz *= dragFactor;
+        }
+        
+        // 保存基础温度用于升温效果
+        if (typeof bodies[i].baseTemperature === 'undefined') {
+            bodies[i].baseTemperature = 0;
+        }
+        bodies[i].baseTemperature += totalHeating * dt;
+
         // 更新速度 (F = ma => a = F/m)
-        bodies[i].vx += fx / bodies[i].mass * 0.01 * speedFactor;
-        bodies[i].vy += fy / bodies[i].mass * 0.01 * speedFactor;
-        bodies[i].vz += fz / bodies[i].mass * 0.01 * speedFactor;
+        bodies[i].vx += fx / bodies[i].mass * dt;
+        bodies[i].vy += fy / bodies[i].mass * dt;
+        bodies[i].vz += fz / bodies[i].mass * dt;
     }
 
     // 更新位置
     for (let body of bodies) {
-        body.x += body.vx * 0.01 * speedFactor;
-        body.y += body.vy * 0.01 * speedFactor;
-        body.z += body.vz * 0.01 * speedFactor;
+        body.x += body.vx * dt;
+        body.y += body.vy * dt;
+        body.z += body.vz * dt;
         
         // 更新行星自转角度
         if (!body.rotationAngle) {
@@ -1654,6 +1846,78 @@ function drawTrails() {
     }
 }
 
+// 绘制星云
+function drawNebulas() {
+    for (let nebula of nebulas) {
+        const projected = project3D(nebula.x, nebula.y, nebula.z);
+        const radius = nebula.currentRadius * projected.sizeFactor * scale;
+        
+        // 解析颜色1
+        let r1, g1, b1;
+        if (nebula.color1.startsWith('#')) {
+            const hex = nebula.color1.slice(1);
+            r1 = parseInt(hex.slice(0, 2), 16);
+            g1 = parseInt(hex.slice(2, 4), 16);
+            b1 = parseInt(hex.slice(4, 6), 16);
+        } else if (nebula.color1.startsWith('rgb(')) {
+            const rgbMatch = nebula.color1.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (rgbMatch) {
+                r1 = parseInt(rgbMatch[1]);
+                g1 = parseInt(rgbMatch[2]);
+                b1 = parseInt(rgbMatch[3]);
+            } else {
+                r1 = g1 = b1 = 200;
+            }
+        } else {
+            r1 = g1 = b1 = 200;
+        }
+        
+        // 解析颜色2
+        let r2, g2, b2;
+        if (nebula.color2.startsWith('#')) {
+            const hex = nebula.color2.slice(1);
+            r2 = parseInt(hex.slice(0, 2), 16);
+            g2 = parseInt(hex.slice(2, 4), 16);
+            b2 = parseInt(hex.slice(4, 6), 16);
+        } else if (nebula.color2.startsWith('rgb(')) {
+            const rgbMatch = nebula.color2.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (rgbMatch) {
+                r2 = parseInt(rgbMatch[1]);
+                g2 = parseInt(rgbMatch[2]);
+                b2 = parseInt(rgbMatch[3]);
+            } else {
+                r2 = g2 = b2 = 150;
+            }
+        } else {
+            r2 = g2 = b2 = 150;
+        }
+        
+        // 创建星云渐变
+        const gradient = ctx.createRadialGradient(
+            projected.x, projected.y, 0,
+            projected.x, projected.y, radius
+        );
+        
+        const tempFactor = Math.max(0.3, Math.min(1, nebula.temperature / 10000));
+        gradient.addColorStop(0, `rgba(${r1}, ${g1}, ${b1}, ${0.8 * tempFactor})`);
+        gradient.addColorStop(0.3, `rgba(${Math.round((r1 + r2) / 2)}, ${Math.round((g1 + g2) / 2)}, ${Math.round((b1 + b2) / 2)}, ${0.6 * tempFactor})`);
+        gradient.addColorStop(0.6, `rgba(${r2}, ${g2}, ${b2}, ${0.4 * tempFactor})`);
+        gradient.addColorStop(1, `rgba(${r2}, ${g2}, ${b2}, 0)`);
+        
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(projected.x, projected.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 绘制星云标签
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        const statusText = nebula.isStable ? '(稳定)' : '(扩散中)';
+        ctx.fillText(`星云${nebula.id} ${statusText}`, projected.x, projected.y - radius - 10);
+    }
+}
+
 // 绘制天体
 function drawBodies() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1668,6 +1932,9 @@ function drawBodies() {
 
     // 绘制轨迹
     drawTrails();
+
+    // 绘制星云
+    drawNebulas();
 
     // 创建一个包含天体和z深度的数组，用于正确排序
     const bodiesWithDepth = bodies.map(body => {
@@ -1907,6 +2174,7 @@ let starLabels = [];
 let labelContainer;
 let sunLight, sunLight2, sunLight3;
 let atmosphericFog;
+let nebulaObjects = [];
 
 // 初始化第一视角3D场景
 function initFirstPersonScene() {
@@ -2555,6 +2823,248 @@ function updateStarsInFirstPersonView(planetP) {
     
     // 更新大气效果
     updateAtmosphere(stars, planetP);
+    
+    // 更新星云
+    updateNebulasInFirstPersonView(planetP);
+}
+
+// 更新第一视角中的星云
+function updateNebulasInFirstPersonView(planetP) {
+    if (!firstPersonInitialized) return;
+    
+    // 观察者位于行星P的位置
+    const observerX = planetP.x;
+    const observerY = planetP.y;
+    const observerZ = planetP.z;
+    
+    // 临时存储新的星云对象
+    const newNebulaObjects = [];
+    
+    for (let nebula of nebulas) {
+        // 计算星云相对于观察者的位置
+        const dx = nebula.x - observerX;
+        const dy = nebula.y - observerY;
+        const dz = nebula.z - observerZ;
+        const distanceToObserver = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        let x, y, z, nebulaSize;
+        
+        // 所有星云都投影到天球上，相对天空静止
+        const latitude = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+        let longitude = Math.atan2(dx, dz);
+        
+        while (longitude > Math.PI) longitude -= 2 * Math.PI;
+        while (longitude < -Math.PI) longitude += 2 * Math.PI;
+        
+        const skyRadius = 480;
+        x = skyRadius * Math.cos(latitude) * Math.sin(longitude);
+        y = skyRadius * Math.sin(latitude);
+        z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
+        
+        const cos = Math.cos(skyRotation);
+        const sin = Math.sin(skyRotation);
+        const yRotated = y * cos - z * sin;
+        const zRotated = y * sin + z * cos;
+        y = yRotated;
+        z = zRotated;
+        
+        const baseSize = nebula.currentRadius * 0.25;
+        const distanceScale = Math.max(0.5, Math.min(6, 250 / Math.max(50, distanceToObserver)));
+        nebulaSize = baseSize * distanceScale;
+        
+        // 解析星云颜色
+        let r1, g1, b1;
+        if (nebula.color1.startsWith('#')) {
+            const hex = nebula.color1.slice(1);
+            r1 = parseInt(hex.slice(0, 2), 16) / 255;
+            g1 = parseInt(hex.slice(2, 4), 16) / 255;
+            b1 = parseInt(hex.slice(4, 6), 16) / 255;
+        } else {
+            r1 = g1 = b1 = 0.8;
+        }
+        
+        let r2, g2, b2;
+        if (nebula.color2.startsWith('#')) {
+            const hex = nebula.color2.slice(1);
+            r2 = parseInt(hex.slice(0, 2), 16) / 255;
+            g2 = parseInt(hex.slice(2, 4), 16) / 255;
+            b2 = parseInt(hex.slice(4, 6), 16) / 255;
+        } else {
+            r2 = g2 = b2 = 0.6;
+        }
+        
+        const tempFactor = Math.max(0.5, Math.min(1, nebula.temperature / 10000));
+        
+        // 创建星云着色器材质（更璀璨）
+        const nebulaMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                color1: { value: new THREE.Color(r1, g1, b1) },
+                color2: { value: new THREE.Color(r2, g2, b2) },
+                temperature: { value: tempFactor }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                varying float vGroundClip;
+                
+                void main() {
+                    vUv = uv;
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vGroundClip = max(0.0, worldPos.y + 0.5);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 color1;
+                uniform vec3 color2;
+                uniform float temperature;
+                varying vec2 vUv;
+                varying float vGroundClip;
+                
+                void main() {
+                    float distanceToCenter = distance(vUv, vec2(0.5, 0.5)) * 2.0;
+                    
+                    if (distanceToCenter > 1.0) {
+                        discard;
+                    }
+                    
+                    vec3 color = mix(color1, color2, distanceToCenter);
+                    
+                    float coreFactor = 1.0 - distanceToCenter;
+                    coreFactor = pow(coreFactor, 0.3);
+                    
+                    float alpha = coreFactor * temperature * 1.5;
+                    alpha *= smoothstep(0.0, 1.0, vGroundClip);
+                    
+                    vec3 brightColor = color * (1.0 + coreFactor * 0.5);
+                    
+                    gl_FragColor = vec4(brightColor, alpha);
+                }
+            `,
+            transparent: true,
+            depthWrite: false,
+            depthTest: false,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide
+        });
+        
+        // 创建多层星云效果，更像真实星云（扁平、弥散）
+        const layers = 4;
+        for (let layer = 0; layer < layers; layer++) {
+            const layerOffset = nebula.layerOffsets[layer];
+            const layerScale = layerOffset.scale;
+            const layerSize = nebulaSize * layerScale;
+            const layerAlpha = 1.0 - (layer / layers) * 0.5;
+            
+            const offsetX = layerOffset.x * layerSize * 0.5;
+            const offsetY = layerOffset.y * layerSize * 0.3;
+            const offsetZ = layerOffset.z * layerSize * 0.5;
+            
+            // 使用扁椭球体，而不是完美球体
+            const xScale = 1.0 + Math.sin(layerOffset.rotation * 2.0) * 0.3;
+            const yScale = 0.6 + Math.cos(layerOffset.rotation * 3.0) * 0.2;
+            const zScale = 0.9 + Math.sin(layerOffset.rotation) * 0.2;
+            
+            const layerGeometry = new THREE.SphereGeometry(layerSize, 20, 16);
+            
+            // 变形几何体，创造不规则形状
+            const positions = layerGeometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i] *= xScale;
+                positions[i + 1] *= yScale;
+                positions[i + 2] *= zScale;
+                
+                const nx = positions[i] / layerSize;
+                const ny = positions[i + 1] / layerSize;
+                const nz = positions[i + 2] / layerSize;
+                
+                const noise = Math.sin(nx * 5.0 + layerOffset.rotation) * 
+                              Math.cos(ny * 7.0 + layerOffset.rotation) * 0.15;
+                
+                positions[i] *= (1.0 + noise);
+                positions[i + 1] *= (1.0 + noise * 0.8);
+                positions[i + 2] *= (1.0 + noise);
+            }
+            layerGeometry.attributes.position.needsUpdate = true;
+            layerGeometry.computeVertexNormals();
+            
+            const layerMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                    color1: { value: new THREE.Color(r1, g1, b1) },
+                    color2: { value: new THREE.Color(r2, g2, b2) },
+                    temperature: { value: tempFactor },
+                    layerAlpha: { value: layerAlpha }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    varying float vGroundClip;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        vUv = uv;
+                        vPosition = position;
+                        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                        vGroundClip = max(0.0, worldPos.y + 0.5);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 color1;
+                    uniform vec3 color2;
+                    uniform float temperature;
+                    uniform float layerAlpha;
+                    varying vec2 vUv;
+                    varying float vGroundClip;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        float distanceToCenter = distance(vUv, vec2(0.5, 0.5)) * 2.0;
+                        
+                        if (distanceToCenter > 1.0) {
+                            discard;
+                        }
+                        
+                        float centerDist = length(vPosition);
+                        
+                        vec3 color = mix(color1, color2, distanceToCenter);
+                        
+                        float coreFactor = 1.0 - distanceToCenter;
+                        coreFactor = pow(coreFactor, 0.25);
+                        
+                        float alpha = coreFactor * temperature * layerAlpha * 0.8;
+                        alpha *= smoothstep(0.0, 1.0, vGroundClip);
+                        
+                        vec3 brightColor = color;
+                        
+                        gl_FragColor = vec4(brightColor, alpha);
+                    }
+                `,
+                transparent: true,
+                depthWrite: false,
+                depthTest: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide
+            });
+            
+            const layerMesh = new THREE.Mesh(layerGeometry, layerMaterial);
+            layerMesh.position.set(x + offsetX, y + offsetY, z + offsetZ);
+            layerMesh.renderOrder = -3 + layer;
+            
+            firstPersonScene.add(layerMesh);
+            newNebulaObjects.push({
+                mesh: layerMesh,
+                nebula: nebula
+            });
+        }
+    }
+    
+    // 清除旧的星云对象
+    nebulaObjects.forEach(nebulaObj => {
+        firstPersonScene.remove(nebulaObj.mesh);
+        if (nebulaObj.mesh.geometry) nebulaObj.mesh.geometry.dispose();
+        if (nebulaObj.mesh.material) nebulaObj.mesh.material.dispose();
+    });
+    
+    nebulaObjects = newNebulaObjects;
 }
 
 // 更新动态点光源
@@ -4053,6 +4563,26 @@ function showStarInfo() {
                     timeValue = typeof time !== 'undefined' ? time.toFixed(2) : '0.00';
                 } catch (dataError) {
                     console.warn('获取数据时出错:', dataError);
+                }
+                
+                // 添加星云信息
+                if (nebulas.length > 0) {
+                    celestialBodiesHTML += '<h4 style="margin-top: 15px;">星云信息</h4>';
+                    nebulas.forEach(nebula => {
+                        const statusText = nebula.isStable ? '稳定' : '扩散中';
+                        celestialBodiesHTML += `
+                            <div style="margin-bottom: 10px; padding: 8px; background: rgba(255, 100, 100, 0.1); border-radius: 4px;">
+                                <strong>星云 ${nebula.id}</strong>
+                                <span style="margin-left: 8px; font-size: 12px; color: #ff6666;">(${statusText})</span>
+                                <div style="font-size: 12px; margin-top: 4px;">
+                                    质量: ${nebula.mass.toFixed(0)}<br>
+                                    半径: ${nebula.currentRadius.toFixed(1)} 单位<br>
+                                    温度: ${nebula.temperature.toFixed(0)} K<br>
+                                    年龄: ${nebula.age.toFixed(1)} 刻
+                                </div>
+                            </div>
+                        `;
+                    });
                 }
                 
                 celestialBodiesHTML += `
