@@ -1,8 +1,8 @@
-# Trisolaran Civilization Simulator
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com)
-[![Tech](https://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg)](https://developer.mozilla.org/)
+Trisolaran Civilization Simulator
+[!\[Platform\](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg null)](https://www.microsoft.com/windows)
+[!\[Status\](https://img.shields.io/badge/status-active-brightgreen.svg null)](https://github.com)
+[!\[Tech\](https://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg null)](https://developer.mozilla.org/)
+==================================================================================================================================
 
 [中文版点这里](README.md)
 
@@ -17,18 +17,21 @@ Three-Body Civilization Simulator is a web-based interactive 3D simulator that c
 ## Core Features
 
 ### 3D Three-Body Motion Simulation
+
 - Realistic physics simulation based on the law of universal gravitation
 - Visual display of complex motion trajectories of three stars (α, β, γ) and planet (P)
 - Support for 3D view rotation, zooming, and focusing on specific celestial bodies
 - Real-time display of key information such as simulation time and planetary surface temperature
 
 ### Civilization Rise and Fall Simulation
+
 - Simulate the impact of temperature changes on planet P's surface on civilization
 - Divide civilization development into seven stages: Primitive Age, Feudal Age, Steam Age, Electrical Age, Atomic Age, Information Age, and Interstellar Exploration Age
 - Record the existence time, development stage, and final outcome of each civilization
 - Civilization outcomes include: destruction by high temperature, destruction by low temperature, or successful flight to a new home
 
 ### Interactive Experience
+
 - New Game: Randomly generate a brand-new three-body system configuration
 - Restart Simulation: Reset the simulation with current parameters
 - Adjust Simulation Speed: Ranging from 0.1x to 300x
@@ -36,18 +39,21 @@ Three-Body Civilization Simulator is a web-based interactive 3D simulator that c
 - Export/Import Parameters: Save and share your three-body system configurations
 
 ### Three-Body Quotes Carousel
+
 - Display more than 50 classic quotes from *Three-Body Problem* novels
 - Automatically switch as the simulation progresses, creating a strong science fiction atmosphere
 
 ## User Guide
 
 ### Basic Operations
+
 - **Single-finger drag**: Rotate the view
 - **Two-finger pinch**: Adjust field of view size
 - **Double-click on a celestial body**: Focus on that celestial body
 - **Single-click on a celestial body**: View detailed information about the celestial body
 
 ### Control Panel
+
 - **New Game**: Generate a random three-body system
 - **Restart Simulation**: Reset current simulation state
 - **First-Person View**: Switch to first-person mode
@@ -90,5 +96,3 @@ Due to instances of misuse, versions 1.12.2 and later of this project will trans
 "Weakness and ignorance are not barriers to survival, but arrogance is." — *Three-Body Problem*
 
 May we all find our own light of civilization in this chaotic universe.
-
-

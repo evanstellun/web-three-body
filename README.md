@@ -1,9 +1,8 @@
-# 三体文明模拟器
-
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Status](https://img.shields.io/badge/status-active-brightgreen.svg)](https://github.com)
-[![Tech](https://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg)](https://developer.mozilla.org/)
+三体文明模拟器
+[!\[Platform\](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg null)](https://www.microsoft.com/windows)
+[!\[Status\](https://img.shields.io/badge/status-active-brightgreen.svg null)](https://github.com)
+[!\[Tech\](https://img.shields.io/badge/tech-HTML5%20%7C%20CSS3%20%7C%20JavaScript-blue.svg null)](https://developer.mozilla.org/)
+==================================================================================================================================
 
 [English Version Here](README_EN.md)
 
@@ -18,18 +17,21 @@
 ## 核心功能
 
 ### 3D三体运动模拟
+
 - 基于万有引力定律的真实物理模拟
 - 可视化展示三个恒星（α、β、γ）与行星（P）的复杂运动轨迹
 - 支持3D视角旋转、缩放和聚焦到特定天体
 - 实时显示模拟时间、行星表面温度等关键信息
 
 ### 文明兴衰模拟
+
 - 模拟行星P表面温度变化对文明的影响
 - 将文明发展划分为七个阶段：原始时代、封建时代、蒸汽时代、电气时代、原子时代、信息时代和星际探索时代
 - 记录每个文明的存在时间、发展阶段和最终结局
 - 文明结局包括：高温毁灭、低温毁灭或成功飞向新家园
 
 ### 交互式体验
+
 - 重开一局：随机生成全新的三体系统配置
 - 重新模拟：使用当前参数重置模拟
 - 调整模拟速度：从0.1x到300x不等
@@ -37,18 +39,21 @@
 - 导出/导入参数：保存和分享你的三体系统配置
 
 ### 三体名句轮播
+
 - 展示《三体》小说中的50+条经典语句
 - 随着模拟进行自动切换，营造浓厚的科幻氛围
 
 ## 使用指南
 
 ### 基本操作
+
 - **单指拖拽**：旋转视角
 - **双指缩放**：调整视野大小
 - **双击天体**：聚焦到该天体
 - **单击天体**：查看天体详细信息
 
 ### 控制面板
+
 - **重开一局**：生成随机三体系统
 - **重新模拟**：重置当前模拟状态
 - **第一视角**：切换至第一视角模式
@@ -84,7 +89,6 @@
 - Netlify提供的免费同步github存储库功能
 - 在测试程序时毁灭的总计3154个三体文明以及成功飞向新家园的207个三体文明（doge）
 
-
 ## 许可证
 
 由于出现被不合理使用的现象，本项目1.12.2及以后的版本将会由MIT许可证改为Apache-2.0 许可证，如需使用需授权并署名 - 详情请查看[LICENSE](LICENSE)文件
@@ -92,4 +96,3 @@
 "弱小和无知不是生存的障碍，傲慢才是。" —— 《三体》
 
 愿我们都能在这混沌的宇宙中，找到属于自己的文明之光。
-

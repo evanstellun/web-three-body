@@ -2114,15 +2114,15 @@ function createStarField() {
         colors[i + 1] = g;
         colors[i + 2] = b;
         
-        // 随机星星大小
-        sizes[index] = 0.5 + Math.random() * 2.0;
+        // 随机星星大小（更大）
+        sizes[index] = 1.0 + Math.random() * 3.0;
     }
     
     starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     starGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     starGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
     
-    // 使用自定义着色器材质，实现更真实的星星效果
+    // 使用自定义着色器材质，实现更真实的星星效果（更亮）
     const starMaterial = new THREE.ShaderMaterial({
         uniforms: {},
         vertexShader: `
@@ -2133,7 +2133,7 @@ function createStarField() {
             void main() {
                 vColor = color;
                 vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                gl_PointSize = size * (300.0 / -mvPosition.z);
+                gl_PointSize = size * (400.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
             }
         `,
@@ -2147,8 +2147,8 @@ function createStarField() {
                 }
                 
                 float alpha = 1.0 - smoothstep(0.0, 0.5, distanceToCenter);
-                alpha *= alpha; // 更柔和的边缘
-                gl_FragColor = vec4(vColor, alpha * 0.9);
+                alpha = pow(alpha, 0.5); // 更亮的中心
+                gl_FragColor = vec4(vColor, alpha * 1.0);
             }
         `,
         transparent: true,
@@ -2220,6 +2220,17 @@ function updateStarsInFirstPersonView(planetP) {
         // 计算距离
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         
+        // 飞星判断逻辑：当恒星与行星距离大于900时成为飞星
+        let isFlyingStar = false;
+        if (distance > 900) {
+            isFlyingStar = true;
+            // 在第一视角下，飞星显示为白色
+            star.color = '#ffffff';
+        } else {
+            // 恢复原来的恒星颜色
+            star.color = getSpectralColor(star.mass);
+        }
+        
         // 应用用户描述的天球坐标系算法
         // 1. 计算恒星与行星连线与垂直面的夹角（纬度）
         // 垂直面是垂直于Y轴的平面，纬度是连线与这个平面的夹角
@@ -2277,16 +2288,27 @@ function updateStarsInFirstPersonView(planetP) {
         
         // 创建恒星对象 - 根据距离动态调整大小，增强远距离变小效果
         // 基础大小根据距离缩放，距离越近越大，距离越远越小
-        const baseSize = star.radius * 2;
-        const distanceScale = Math.max(0.1, Math.min(12, 500 / distance)); // 距离500时为原始大小，距离越近越大，最大12倍，最小0.1倍
+        let baseSize = star.radius * 2;
+        let distanceScale = Math.max(0.1, Math.min(12, 500 / distance)); // 距离500时为原始大小，距离越近越大，最大12倍，最小0.1倍
+        
+        // 如果是飞星，调整大小和亮度
+        if (isFlyingStar) {
+            baseSize = star.radius * 1.5; // 飞星更大
+            distanceScale = Math.max(0.5, Math.min(5, 300 / distance)); // 飞星更明显
+        }
         
         // 计算恒星大小
         let calculatedSize = baseSize * distanceScale;
-        const starSize = Math.max(0.3, Math.min(60, calculatedSize)); // 最小尺寸减小到0.3
+        const starSize = Math.max(1, Math.min(60, calculatedSize)); // 飞星最小尺寸更大
         const starGeometry = new THREE.SphereGeometry(starSize, 32, 32); // 增加分段数使太阳更接近圆形
         
         // 根据距离调整亮度 - 大幅增强近距离亮度效果
-        const brightness = Math.max(0.5, Math.min(15, 3 - distance * 0.006)); // 提高基础亮度、最大亮度和影响范围
+        let brightness = Math.max(0.5, Math.min(15, 3 - distance * 0.006)); // 提高基础亮度、最大亮度和影响范围
+        
+        // 飞星也明亮
+        if (isFlyingStar) {
+            brightness = Math.max(1, Math.min(8, 2 - distance * 0.001));
+        }
         
         // 使用光谱颜色
         const spectralColor = getSpectralColor(star.mass);
@@ -2381,30 +2403,51 @@ function updateStarsInFirstPersonView(planetP) {
         
         // 检查恒星是否在地面以上，如果在地面以下则不添加光晕
         if (y > -starSize) { // 确保恒星大部分在地面以上才显示光晕
-            // 内层光晕（柔和的光晕，使用自定义着色器实现平滑渐变）- 增加透明度使光晕更明显
-            const innerGlowRadius = starSize * 1.2; // 增大尺寸为恒星的1.2倍
-            const innerGlowGeometry = new THREE.SphereGeometry(innerGlowRadius, 32, 32);
-            const innerGlowMaterial = createGlowMaterial(new THREE.Color(r/255, g/255, b/255), 1); // 透明度从0.3增加到0.8
-            const innerGlowMesh = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
-            innerGlowMesh.position.set(x, y, z);
-            innerGlowMesh.renderOrder = -1; // 确保光晕在地面之前渲染
-            firstPersonScene.add(innerGlowMesh);
-            glowMeshes.push(innerGlowMesh);
-            
-            // 外层光晕（更弱更弥散的光晕，使用自定义着色器实现平滑渐变）- 增加透明度使光晕更明显
-            const outerGlowRadius = starSize * 1.8; // 增大尺寸为恒星的1.8倍
-            const outerGlowGeometry = new THREE.SphereGeometry(outerGlowRadius, 32, 32);
-            const outerGlowMaterial = createGlowMaterial(new THREE.Color(r/255, g/255, b/255), 0.6); // 透明度从0.35增加到0.6
-            const outerGlowMesh = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
-            outerGlowMesh.position.set(x, y, z);
-            outerGlowMesh.renderOrder = -1; // 确保光晕在地面之前渲染
-            firstPersonScene.add(outerGlowMesh);
-            glowMeshes.push(outerGlowMesh);
+            if (isFlyingStar) {
+                // 飞星有明显的光晕
+                const innerGlowRadius = starSize * 2;
+                const innerGlowGeometry = new THREE.SphereGeometry(innerGlowRadius, 32, 32);
+                const innerGlowMaterial = createGlowMaterial(new THREE.Color(r/255, g/255, b/255), 0.8);
+                const innerGlowMesh = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+                innerGlowMesh.position.set(x, y, z);
+                innerGlowMesh.renderOrder = -1;
+                firstPersonScene.add(innerGlowMesh);
+                glowMeshes.push(innerGlowMesh);
+                
+                const outerGlowRadius = starSize * 3;
+                const outerGlowGeometry = new THREE.SphereGeometry(outerGlowRadius, 32, 32);
+                const outerGlowMaterial = createGlowMaterial(new THREE.Color(r/255, g/255, b/255), 0.4);
+                const outerGlowMesh = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
+                outerGlowMesh.position.set(x, y, z);
+                outerGlowMesh.renderOrder = -1;
+                firstPersonScene.add(outerGlowMesh);
+                glowMeshes.push(outerGlowMesh);
+            } else {
+                // 内层光晕（柔和的光晕，使用自定义着色器实现平滑渐变）- 增加透明度使光晕更明显
+                const innerGlowRadius = starSize * 1.2; // 增大尺寸为恒星的1.2倍
+                const innerGlowGeometry = new THREE.SphereGeometry(innerGlowRadius, 32, 32);
+                const innerGlowMaterial = createGlowMaterial(new THREE.Color(r/255, g/255, b/255), 1); // 透明度从0.3增加到0.8
+                const innerGlowMesh = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+                innerGlowMesh.position.set(x, y, z);
+                innerGlowMesh.renderOrder = -1; // 确保光晕在地面之前渲染
+                firstPersonScene.add(innerGlowMesh);
+                glowMeshes.push(innerGlowMesh);
+                
+                // 外层光晕（更弱更弥散的光晕，使用自定义着色器实现平滑渐变）- 增加透明度使光晕更明显
+                const outerGlowRadius = starSize * 1.8; // 增大尺寸为恒星的1.8倍
+                const outerGlowGeometry = new THREE.SphereGeometry(outerGlowRadius, 32, 32);
+                const outerGlowMaterial = createGlowMaterial(new THREE.Color(r/255, g/255, b/255), 0.6); // 透明度从0.35增加到0.6
+                const outerGlowMesh = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
+                outerGlowMesh.position.set(x, y, z);
+                outerGlowMesh.renderOrder = -1; // 确保光晕在地面之前渲染
+                firstPersonScene.add(outerGlowMesh);
+                glowMeshes.push(outerGlowMesh);
+            }
         }
         
         firstPersonScene.add(starMesh);
         
-        const typeLabel = '(太阳)';
+        const typeLabel = isFlyingStar ? '(飞星)' : '(太阳)';
         
         // 创建恒星名称标注
         try {
