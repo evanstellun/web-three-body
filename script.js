@@ -2845,7 +2845,6 @@ function updateNebulasInFirstPersonView(planetP) {
         const dx = nebula.x - observerX;
         const dy = nebula.y - observerY;
         const dz = nebula.z - observerZ;
-        const distanceToObserver = Math.sqrt(dx * dx + dy * dy + dz * dz);
         
         let x, y, z, nebulaSize;
         
@@ -2868,9 +2867,7 @@ function updateNebulasInFirstPersonView(planetP) {
         y = yRotated;
         z = zRotated;
         
-        const baseSize = nebula.currentRadius * 0.25;
-        const distanceScale = Math.max(0.5, Math.min(6, 250 / Math.max(50, distanceToObserver)));
-        nebulaSize = baseSize * distanceScale;
+        nebulaSize = nebula.currentRadius * 0.25;
         
         // 解析星云颜色
         let r1, g1, b1;
@@ -4006,10 +4003,14 @@ function showCivilizationHistory() {
 
             civilizations.forEach(entry => {
                 // 根据灭亡消息内容判断是高温还是低温毁灭
-                let destructionType = "被观察者关闭了"; // 默认低温毁灭
+                let destructionType = "在低温下毁灭"; // 默认低温毁灭
                 
+                // 检查被观察者关闭的情况
+                if (entry.destruction.includes("被观察者关闭")) {
+                    destructionType = "被观察者关闭";
+                }
                 // 高温毁灭的关键词
-                if (entry.destruction.includes("烈焰") || 
+                else if (entry.destruction.includes("烈焰") || 
                     entry.destruction.includes("高温") || 
                     entry.destruction.includes("巨日") || 
                     entry.destruction.includes("三日凌空") || 
@@ -4024,7 +4025,6 @@ function showCivilizationHistory() {
                          entry.destruction.includes("家园")) {
                     destructionType = "飞向了新家园";
                 }
-                // 其他情况默认为低温毁灭
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
