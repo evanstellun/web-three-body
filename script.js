@@ -469,8 +469,47 @@ let nebulas = [];
 let nebulaIdCounter = 0;
 const greekLetters = ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω'];
 
+// 爆炸相关
+let explosions = [];
+let fragmentCounter = {};
+
+class Explosion {
+    constructor(id, x, y, z, power, color1, color2) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.power = power;
+        this.color1 = color1;
+        this.color2 = color2;
+        this.age = 0;
+        this.maxAge = 100;
+        this.radius = 0;
+        this.maxRadius = Math.cbrt(power) * 10;
+        this.isActive = true;
+    }
+    
+    update(dt) {
+        this.age += dt;
+        if (this.age >= this.maxAge) {
+            this.isActive = false;
+            return;
+        }
+        
+        const progress = this.age / this.maxAge;
+        this.radius = this.maxRadius * (1 - Math.pow(1 - progress, 2));
+    }
+    
+    getHeatingEffect(distance) {
+        if (distance > this.maxRadius) return 0;
+        const effectiveRadius = this.radius * 2;
+        if (distance > effectiveRadius) return 0;
+        const baseHeat = this.power * 10000;
+        return baseHeat / (distance * distance + 10);
+    }
+}
+
 // 初始化天体
-// 初始化天体（保存初始状态）
 let initialBodies = [];
 
 function initBodies() {
@@ -626,6 +665,8 @@ function showCivilizationHistory() {
                           entry.destruction.includes("夜空升起") ||
                           entry.destruction.includes("氮氧凝固")) {
                     destructionType = "在低温下毁灭";
+                } else if (entry.destruction.includes("撞击")) {
+                    destructionType = "被碎片撞击毁灭";
                 }
 
                 const row = document.createElement('tr');
@@ -676,6 +717,10 @@ function randomizeBodies() {
     // 重置星云
     nebulas = [];
     nebulaIdCounter = 0;
+    
+    // 重置爆炸和碎片
+    explosions = [];
+    fragmentCounter = {};
     
     // 重置updateStarInfo调用计数器
     if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
@@ -802,6 +847,10 @@ function resetSimulation() {
     nebulas = [];
     nebulaIdCounter = 0;
     
+    // 重置爆炸和碎片
+    explosions = [];
+    fragmentCounter = {};
+    
     // 重置updateStarInfo调用计数器
     if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
         updateStarInfo.callCount = 0;
@@ -885,9 +934,23 @@ function checkCollisions() {
                 let message = "";
                 // 检查是否是行星P与其他天体碰撞
                 const hasPlanetP = bodies.some(body => body.name === 'p');
-                if (hasPlanetP && ((body1.name === 'p' && body2.name !== 'p') ||
-                    (body2.name === 'p' && body1.name !== 'p'))) {
+                const isPlanetPCollision = body1.name === 'p' || body2.name === 'p';
+                
+                // 检查是否有天体是碎片
+                const isFragment1 = body1.isFragment === true;
+                const isFragment2 = body2.isFragment === true;
+                
+                if (hasPlanetP && ((body1.name === 'p' && isFragment2) || (body2.name === 'p' && isFragment1))) {
+                    // 碎片撞击行星P
+                    const fragmentBody = body1.name === 'p' ? body2 : body1;
+                    message = `被${fragmentBody.name}撞击毁灭`;
+                } else if (hasPlanetP && ((body1.name === 'p' && body2.name !== 'p') || (body2.name === 'p' && body1.name !== 'p'))) {
                     message = "行星P被恒星吞噬了";
+                } else if ((isFragment1 || isFragment2) && !isPlanetPCollision) {
+                    // 碎片与恒星相撞，合并碎片
+                    const fragmentBody = isFragment1 ? body1 : body2;
+                    const starBody = isFragment1 ? body2 : body1;
+                    message = `${fragmentBody.name}被${starBody.name}吞噬`;
                 } else {
                     message = `${body1.name}和${body2.name}相撞`;
                 }
@@ -922,8 +985,45 @@ function checkCollisions() {
                     lastCivilizationRecorded = true;
                 }
 
-                // 检查是否是行星P与其他天体碰撞
-                const isPlanetPCollision = body1.name === 'p' || body2.name === 'p';
+                // 检查是否有天体是碎片
+                if ((isFragment1 || isFragment2) && !isPlanetPCollision) {
+                    // 碎片与恒星相撞，合并碎片
+                    const fragmentBody = isFragment1 ? body1 : body2;
+                    const starBody = isFragment1 ? body2 : body1;
+                    
+                    // 保存原始质量
+                    const origStarMass = starBody.mass;
+                    
+                    // 合并质量和动量
+                    const totalMass = origStarMass + fragmentBody.mass;
+                    starBody.x = (starBody.x * origStarMass + fragmentBody.x * fragmentBody.mass) / totalMass;
+                    starBody.y = (starBody.y * origStarMass + fragmentBody.y * fragmentBody.mass) / totalMass;
+                    starBody.z = (starBody.z * origStarMass + fragmentBody.z * fragmentBody.mass) / totalMass;
+                    starBody.vx = (starBody.vx * origStarMass + fragmentBody.vx * fragmentBody.mass) / totalMass;
+                    starBody.vy = (starBody.vy * origStarMass + fragmentBody.vy * fragmentBody.mass) / totalMass;
+                    starBody.vz = (starBody.vz * origStarMass + fragmentBody.vz * fragmentBody.mass) / totalMass;
+                    starBody.mass = totalMass;
+                    
+                    // 更新恒星属性
+                    starBody.color = getSpectralColor(starBody.mass);
+                    starBody.radius = Math.cbrt(starBody.mass) * 0.5;
+                    
+                    // 移除碎片
+                    const fragIndex = bodies.indexOf(fragmentBody);
+                    if (fragIndex !== -1) {
+                        bodies.splice(fragIndex, 1);
+                        delete trails[fragmentBody.name];
+                        
+                        if (centerBody === fragmentBody) centerBody = null;
+                        if (selectedBody === fragmentBody) {
+                            selectedBody = null;
+                            document.getElementById('body-info').style.display = 'none';
+                        }
+                    }
+                    
+                    i--;
+                    break;
+                }
                 
                 // 检查是否有天体是星云核
                 let nebulaWithCore = null;
@@ -1012,7 +1112,7 @@ function checkCollisions() {
                     i--;
                     break;
                 } else if (!isPlanetPCollision) {
-                    // 两颗恒星相撞，创建星云
+                    // 两颗恒星相撞，创建爆炸、碎片和星云
                     const totalMass = body1.mass + body2.mass;
                     const newX = (body1.x * body1.mass + body2.x * body2.mass) / totalMass;
                     const newY = (body1.y * body1.mass + body2.y * body2.mass) / totalMass;
@@ -1023,6 +1123,71 @@ function checkCollisions() {
                     
                     const coreMass = totalMass * 0.2;
                     const nebulaMass = totalMass * 0.8;
+                    
+                    // 创建爆炸
+                    const explosionId = explosions.length;
+                    const explosion = new Explosion(
+                        explosionId,
+                        newX, newY, newZ,
+                        totalMass,
+                        body1.color,
+                        body2.color
+                    );
+                    explosions.push(explosion);
+                    
+                    // 生成碎片：10-20个
+                    const fragmentCount = Math.floor(Math.random() * 11) + 10;
+                    const planetMass = 10; // 行星基准质量
+                    
+                    // 初始化碎片计数器
+                    if (!fragmentCounter[body1.name]) fragmentCounter[body1.name] = 0;
+                    if (!fragmentCounter[body2.name]) fragmentCounter[body2.name] = 0;
+                    
+                    for (let f = 0; f < fragmentCount; f++) {
+                        // 随机选择使用哪个恒星的名称作为前缀
+                        const starName = Math.random() < 0.5 ? body1.name : body2.name;
+                        
+                        // 增加该恒星的碎片计数
+                        fragmentCounter[starName]++;
+                        const fragName = `${starName}_${fragmentCounter[starName]}`;
+                        
+                        // 碎片质量：0.1-5倍行星质量
+                        const fragMass = (Math.random() * 4.9 + 0.1) * planetMass;
+                        
+                        // 随机位置（在爆炸中心附近）
+                        const fragOffsetRadius = Math.random() * 20 + 10;
+                        const fragTheta = Math.random() * Math.PI * 2;
+                        const fragPhi = Math.random() * Math.PI;
+                        
+                        const fragX = newX + fragOffsetRadius * Math.sin(fragPhi) * Math.cos(fragTheta);
+                        const fragY = newY + fragOffsetRadius * Math.sin(fragPhi) * Math.sin(fragTheta);
+                        const fragZ = newZ + fragOffsetRadius * Math.cos(fragPhi);
+                        
+                        // 随机速度（高速飞散）
+                        const fragSpeed = Math.random() * 30 + 20;
+                        const fragVTheta = Math.random() * Math.PI * 2;
+                        const fragVPhi = Math.random() * Math.PI;
+                        
+                        const fragVx = newVx + fragSpeed * Math.sin(fragVPhi) * Math.cos(fragVTheta);
+                        const fragVy = newVy + fragSpeed * Math.sin(fragVPhi) * Math.sin(fragVTheta);
+                        const fragVz = newVz + fragSpeed * Math.cos(fragVPhi);
+                        
+                        // 碎片颜色：随机使用两颗恒星的颜色
+                        const fragColor = Math.random() < 0.5 ? body1.color : body2.color;
+                        
+                        // 创建碎片天体
+                        const fragment = new CelestialBody(
+                            fragName,
+                            fragMass,
+                            fragX, fragY, fragZ,
+                            fragVx, fragVy, fragVz,
+                            fragColor
+                        );
+                        fragment.isFragment = true; // 标记为碎片
+                        
+                        bodies.push(fragment);
+                        trails[fragName] = [];
+                    }
                     
                     // 创建恒星核（20%质量）
                     let coreName = greekLetters[nebulaIdCounter % greekLetters.length];
@@ -1514,13 +1679,26 @@ function calculatePlanetPTemperature() {
         }
     }
     
+    // 添加爆炸的升温效果
+    let explosionHeating = 0;
+    for (const explosion of explosions) {
+        if (!explosion.isActive) continue;
+        
+        const dx = planetP.x - explosion.x;
+        const dy = planetP.y - explosion.y;
+        const dz = planetP.z - explosion.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        
+        explosionHeating += explosion.getHeatingEffect(distance);
+    }
+    
     if (typeof planetP.baseTemperature !== 'undefined') {
         nebulaHeating += planetP.baseTemperature * 0.1;
     }
     
-    if (totalEnergy === 0 && nebulaHeating === 0) return '--';
+    if (totalEnergy === 0 && nebulaHeating === 0 && explosionHeating === 0) return '--';
     
-    const temperatureK = 150 * Math.pow(totalEnergy + nebulaHeating * 0.01, 0.25);
+    const temperatureK = 150 * Math.pow(totalEnergy + (nebulaHeating + explosionHeating) * 0.01, 0.25);
     const temperatureC = temperatureK - 273.15;
     return temperatureC.toFixed(2);
 }
@@ -1614,6 +1792,14 @@ function updateBodiesPosition() {
     for (let nebula of nebulas) {
         nebula.update(dt);
     }
+    
+    // 更新所有爆炸
+    for (let explosion of explosions) {
+        explosion.update(dt);
+    }
+    
+    // 清理过期的爆炸
+    explosions = explosions.filter(explosion => explosion.isActive);
     
     // 计算并应用引力
     for (let i = 0; i < bodies.length; i++) {
@@ -2051,6 +2237,97 @@ function drawNebulas() {
     }
 }
 
+// 绘制爆炸
+function drawExplosions() {
+    for (let explosion of explosions) {
+        if (!explosion.isActive) continue;
+        
+        const projected = project3D(explosion.x, explosion.y, explosion.z);
+        const radius = explosion.radius * projected.sizeFactor * scale;
+        const progress = explosion.age / explosion.maxAge;
+        
+        // 解析颜色1
+        let r1, g1, b1;
+        if (explosion.color1.startsWith('#')) {
+            const hex = explosion.color1.slice(1);
+            r1 = parseInt(hex.slice(0, 2), 16);
+            g1 = parseInt(hex.slice(2, 4), 16);
+            b1 = parseInt(hex.slice(4, 6), 16);
+        } else if (explosion.color1.startsWith('rgb(')) {
+            const rgbMatch = explosion.color1.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (rgbMatch) {
+                r1 = parseInt(rgbMatch[1]);
+                g1 = parseInt(rgbMatch[2]);
+                b1 = parseInt(rgbMatch[3]);
+            } else {
+                r1 = g1 = b1 = 255;
+            }
+        } else {
+            r1 = g1 = b1 = 255;
+        }
+        
+        // 解析颜色2
+        let r2, g2, b2;
+        if (explosion.color2.startsWith('#')) {
+            const hex = explosion.color2.slice(1);
+            r2 = parseInt(hex.slice(0, 2), 16);
+            g2 = parseInt(hex.slice(2, 4), 16);
+            b2 = parseInt(hex.slice(4, 6), 16);
+        } else if (explosion.color2.startsWith('rgb(')) {
+            const rgbMatch = explosion.color2.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (rgbMatch) {
+                r2 = parseInt(rgbMatch[1]);
+                g2 = parseInt(rgbMatch[2]);
+                b2 = parseInt(rgbMatch[3]);
+            } else {
+                r2 = g2 = b2 = 200;
+            }
+        } else {
+            r2 = g2 = b2 = 200;
+        }
+        
+        // 爆炸透明度随时间衰减
+        const alphaFactor = 1 - progress * 0.8;
+        
+        // 外层爆炸（最亮最大）
+        const outerRadius = radius * 1.5;
+        const outerGradient = ctx.createRadialGradient(
+            projected.x, projected.y, 0,
+            projected.x, projected.y, outerRadius
+        );
+        outerGradient.addColorStop(0, `rgba(255, 255, 200, ${0.8 * alphaFactor})`);
+        outerGradient.addColorStop(0.3, `rgba(${Math.min(255, r1 + 50)}, ${Math.min(255, g1 + 50)}, ${Math.min(255, b1 + 50)}, ${0.6 * alphaFactor})`);
+        outerGradient.addColorStop(0.7, `rgba(${r2}, ${g2}, ${b2}, ${0.3 * alphaFactor})`);
+        outerGradient.addColorStop(1, `rgba(${r2}, ${g2}, ${b2}, 0)`);
+        
+        ctx.fillStyle = outerGradient;
+        ctx.beginPath();
+        ctx.arc(projected.x, projected.y, outerRadius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 中层爆炸
+        const midRadius = radius;
+        const midGradient = ctx.createRadialGradient(
+            projected.x, projected.y, 0,
+            projected.x, projected.y, midRadius
+        );
+        midGradient.addColorStop(0, `rgba(255, 255, 255, ${0.9 * alphaFactor})`);
+        midGradient.addColorStop(0.5, `rgba(${Math.min(255, r1 + 30)}, ${Math.min(255, g1 + 30)}, ${Math.min(255, b1 + 30)}, ${0.7 * alphaFactor})`);
+        midGradient.addColorStop(1, `rgba(${r1}, ${g1}, ${b1}, 0)`);
+        
+        ctx.fillStyle = midGradient;
+        ctx.beginPath();
+        ctx.arc(projected.x, projected.y, midRadius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 绘制爆炸标签
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`爆炸${explosion.id}`, projected.x, projected.y - outerRadius - 10);
+    }
+}
+
 // 绘制天体
 function drawBodies() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -2068,6 +2345,9 @@ function drawBodies() {
 
     // 绘制星云
     drawNebulas();
+    
+    // 绘制爆炸
+    drawExplosions();
 
     // 创建一个包含天体和z深度的数组，用于正确排序
     const bodiesWithDepth = bodies.map(body => {
@@ -2283,6 +2563,12 @@ function drawFirstPersonView() {
     // 更新恒星位置
     updateStarsInFirstPersonView(referencePoint);
     
+    // 更新星云位置
+    updateNebulasInFirstPersonView(referencePoint);
+    
+    // 更新爆炸位置
+    updateExplosionsInFirstPersonView(referencePoint);
+    
     // 计算总亮度，确保天空和地面颜色更新
     calculateTotalBrightness();
     
@@ -2308,6 +2594,7 @@ let labelContainer;
 let sunLight, sunLight2, sunLight3;
 let atmosphericFog;
 let nebulaObjects = [];
+let explosionObjects = [];
 
 // 初始化第一视角3D场景
 function initFirstPersonScene() {
@@ -3213,6 +3500,203 @@ function updateNebulasInFirstPersonView(planetP) {
     });
     
     nebulaObjects = newNebulaObjects;
+}
+
+// 更新第一视角中的爆炸
+function updateExplosionsInFirstPersonView(planetP) {
+    if (!firstPersonInitialized) return;
+    
+    // 观察者位于行星P的位置
+    const observerX = planetP.x;
+    const observerY = planetP.y;
+    const observerZ = planetP.z;
+    
+    // 临时存储新的爆炸对象
+    const newExplosionObjects = [];
+    
+    for (let explosion of explosions) {
+        if (!explosion.isActive) continue;
+        
+        // 计算爆炸相对于观察者的位置
+        const dx = explosion.x - observerX;
+        const dy = explosion.y - observerY;
+        const dz = explosion.z - observerZ;
+        
+        // 所有爆炸都投影到天球上
+        const latitude = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+        let longitude = Math.atan2(dx, dz);
+        
+        while (longitude > Math.PI) longitude -= 2 * Math.PI;
+        while (longitude < -Math.PI) longitude += 2 * Math.PI;
+        
+        const skyRadius = 485;
+        let x = skyRadius * Math.cos(latitude) * Math.sin(longitude);
+        let y = skyRadius * Math.sin(latitude);
+        let z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
+        
+        const cos = Math.cos(skyRotation);
+        const sin = Math.sin(skyRotation);
+        const yRotated = y * cos - z * sin;
+        const zRotated = y * sin + z * cos;
+        y = yRotated;
+        z = zRotated;
+        
+        const explosionSize = explosion.radius * 0.4;
+        const progress = explosion.age / explosion.maxAge;
+        const alphaFactor = 1 - progress * 0.8;
+        
+        // 解析爆炸颜色
+        let r1, g1, b1;
+        if (explosion.color1.startsWith('#')) {
+            const hex = explosion.color1.slice(1);
+            r1 = parseInt(hex.slice(0, 2), 16) / 255;
+            g1 = parseInt(hex.slice(2, 4), 16) / 255;
+            b1 = parseInt(hex.slice(4, 6), 16) / 255;
+        } else {
+            r1 = g1 = b1 = 1.0;
+        }
+        
+        let r2, g2, b2;
+        if (explosion.color2.startsWith('#')) {
+            const hex = explosion.color2.slice(1);
+            r2 = parseInt(hex.slice(0, 2), 16) / 255;
+            g2 = parseInt(hex.slice(2, 4), 16) / 255;
+            b2 = parseInt(hex.slice(4, 6), 16) / 255;
+        } else {
+            r2 = g2 = b2 = 0.8;
+        }
+        
+        // 外层爆炸（最亮最大）
+        const outerSize = explosionSize * 1.5;
+        const outerGeometry = new THREE.SphereGeometry(outerSize, 32, 32);
+        
+        const outerMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                color1: { value: new THREE.Color(1.0, 1.0, 0.8) },
+                color2: { value: new THREE.Color(r1, g1, b1) },
+                alpha: { value: alphaFactor }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                varying float vGroundClip;
+                
+                void main() {
+                    vUv = uv;
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vGroundClip = max(0.0, worldPos.y + 0.5);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 color1;
+                uniform vec3 color2;
+                uniform float alpha;
+                varying vec2 vUv;
+                varying float vGroundClip;
+                
+                void main() {
+                    float distanceToCenter = distance(vUv, vec2(0.5, 0.5)) * 2.0;
+                    
+                    if (distanceToCenter > 1.0) {
+                        discard;
+                    }
+                    
+                    float coreFactor = 1.0 - distanceToCenter;
+                    coreFactor = pow(coreFactor, 0.3);
+                    
+                    vec3 color = mix(color1, color2, distanceToCenter);
+                    float finalAlpha = coreFactor * alpha;
+                    finalAlpha *= smoothstep(0.0, 1.0, vGroundClip);
+                    
+                    gl_FragColor = vec4(color, finalAlpha);
+                }
+            `,
+            transparent: true,
+            depthWrite: false,
+            depthTest: false,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide
+        });
+        
+        const outerMesh = new THREE.Mesh(outerGeometry, outerMaterial);
+        outerMesh.position.set(x, y, z);
+        outerMesh.renderOrder = -5;
+        firstPersonScene.add(outerMesh);
+        newExplosionObjects.push({
+            mesh: outerMesh,
+            explosion: explosion
+        });
+        
+        // 内层爆炸（更亮）
+        const innerSize = explosionSize;
+        const innerGeometry = new THREE.SphereGeometry(innerSize, 32, 32);
+        
+        const innerMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                color1: { value: new THREE.Color(1.0, 1.0, 1.0) },
+                color2: { value: new THREE.Color(Math.min(1.0, r1 + 0.2), Math.min(1.0, g1 + 0.2), Math.min(1.0, b1 + 0.2)) },
+                alpha: { value: alphaFactor }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                varying float vGroundClip;
+                
+                void main() {
+                    vUv = uv;
+                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                    vGroundClip = max(0.0, worldPos.y + 0.5);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 color1;
+                uniform vec3 color2;
+                uniform float alpha;
+                varying vec2 vUv;
+                varying float vGroundClip;
+                
+                void main() {
+                    float distanceToCenter = distance(vUv, vec2(0.5, 0.5)) * 2.0;
+                    
+                    if (distanceToCenter > 1.0) {
+                        discard;
+                    }
+                    
+                    float coreFactor = 1.0 - distanceToCenter;
+                    coreFactor = pow(coreFactor, 0.4);
+                    
+                    vec3 color = mix(color1, color2, distanceToCenter);
+                    float finalAlpha = coreFactor * alpha * 1.2;
+                    finalAlpha *= smoothstep(0.0, 1.0, vGroundClip);
+                    
+                    gl_FragColor = vec4(color, finalAlpha);
+                }
+            `,
+            transparent: true,
+            depthWrite: false,
+            depthTest: false,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide
+        });
+        
+        const innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
+        innerMesh.position.set(x, y, z);
+        innerMesh.renderOrder = -4;
+        firstPersonScene.add(innerMesh);
+        newExplosionObjects.push({
+            mesh: innerMesh,
+            explosion: explosion
+        });
+    }
+    
+    // 清除旧的爆炸对象
+    explosionObjects.forEach(explosionObj => {
+        firstPersonScene.remove(explosionObj.mesh);
+        if (explosionObj.mesh.geometry) explosionObj.mesh.geometry.dispose();
+        if (explosionObj.mesh.material) explosionObj.mesh.material.dispose();
+    });
+    
+    explosionObjects = newExplosionObjects;
 }
 
 // 更新动态点光源
