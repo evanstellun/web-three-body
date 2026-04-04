@@ -220,6 +220,7 @@ let verticalAngle = 0; // 垂直视角角度
 let civilizationId = 1;
 let civilizationStartTime = 0;
 let lastCivilizationRecorded = false;
+let isDestructionByExplosion = false; // 跟踪是否由爆炸导致灭亡
 
 // 天体轨迹历史记录
 const trailLength = mobileConfig.trailLength;
@@ -502,10 +503,10 @@ class Explosion {
     
     getHeatingEffect(distance) {
         if (distance > this.maxRadius) return 0;
-        const effectiveRadius = this.radius * 2;
+        const effectiveRadius = this.radius * 3;
         if (distance > effectiveRadius) return 0;
-        const baseHeat = this.power * 10000;
-        return baseHeat / (distance * distance + 10);
+        const baseHeat = this.power * 100000;
+        return baseHeat / (distance * distance + 1);
     }
 }
 
@@ -652,7 +653,11 @@ function showCivilizationHistory() {
             civilizations.forEach(entry => {
                 // 根据灭亡消息内容判断是高温还是低温毁灭
                 let destructionType = entry.destruction;
-                if (entry.destruction.includes("烈焰") || 
+                if (entry.destruction.includes("爆炸") || 
+                    entry.destruction.includes("超新星") ||
+                    entry.destruction.includes("化为灰烬")) {
+                    destructionType = "被恒星爆炸毁灭";
+                } else if (entry.destruction.includes("烈焰") || 
                     entry.destruction.includes("高温") || 
                     entry.destruction.includes("巨日") ||
                     entry.destruction.includes("双日凌空") ||
@@ -1513,7 +1518,15 @@ function showTemperatureMessage(message) {
 
     // 根据恒星状态选择合适的消息集合并随机选择一条消息
     let finalMessage;
-    if (message.includes("在阳光的烈焰下毁灭了")) {
+    if (message.includes("在恒星爆炸的烈焰中化为灰烬")) {
+        // 爆炸导致灭亡的情况
+        const explosionMessages = [
+            `第${civilizationId}号文明在恒星爆炸的烈焰中化为灰烬了`,
+            `第${civilizationId}号文明被超新星爆发的光芒吞没了`,
+            `第${civilizationId}号文明在恒星相撞的灾难中毁灭了`
+        ];
+        finalMessage = explosionMessages[Math.floor(Math.random() * explosionMessages.length)];
+    } else if (message.includes("在阳光的烈焰下毁灭了")) {
         // 高温情况
         let messageList;
         if (risingStarCount === 3) {
@@ -1652,8 +1665,8 @@ function calculateStarTemperature(star) {
 // 计算行星P的表面温度（基于所有其他天体的综合影响）
 function calculatePlanetPTemperature() {
     const planetP = bodies.find(body => body.name === 'p');
-    if (!planetP) return '--';
-    if (bodies.length <= 1) return '--';
+    if (!planetP) return { temp: '--', isExplosion: false };
+    if (bodies.length <= 1) return { temp: '--', isExplosion: false };
     let totalEnergy = 0;
     for (const body of bodies) {
         if (body.name === 'p') continue;
@@ -1681,6 +1694,7 @@ function calculatePlanetPTemperature() {
     
     // 添加爆炸的升温效果
     let explosionHeating = 0;
+    let hasActiveExplosion = false;
     for (const explosion of explosions) {
         if (!explosion.isActive) continue;
         
@@ -1689,18 +1703,24 @@ function calculatePlanetPTemperature() {
         const dz = planetP.z - explosion.z;
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         
-        explosionHeating += explosion.getHeatingEffect(distance);
+        const heating = explosion.getHeatingEffect(distance);
+        explosionHeating += heating;
+        if (heating > 0) hasActiveExplosion = true;
     }
     
     if (typeof planetP.baseTemperature !== 'undefined') {
         nebulaHeating += planetP.baseTemperature * 0.1;
     }
     
-    if (totalEnergy === 0 && nebulaHeating === 0 && explosionHeating === 0) return '--';
+    if (totalEnergy === 0 && nebulaHeating === 0 && explosionHeating === 0) return { temp: '--', isExplosion: false };
     
     const temperatureK = 150 * Math.pow(totalEnergy + (nebulaHeating + explosionHeating) * 0.01, 0.25);
     const temperatureC = temperatureK - 273.15;
-    return temperatureC.toFixed(2);
+    
+    // 判断是否主要由爆炸导致高温
+    const isExplosion = hasActiveExplosion && explosionHeating * 0.01 > totalEnergy * 0.5;
+    
+    return { temp: temperatureC.toFixed(2), isExplosion: isExplosion };
 }
 
 function calculateTemperatureWithBodies(bodiesArray) {
@@ -2485,8 +2505,8 @@ function drawBodies() {
 
 // 获取鼠标点击位置下的天体
 function getBodyAtPosition(mouseX, mouseY) {
-    // 创建一个包含天体和z深度的数组，用于正确排序
-    const bodiesWithDepth = bodies.map(body => {
+    // 创建一个包含天体和z深度的数组，用于正确排序（排除碎片）
+    const bodiesWithDepth = bodies.filter(body => !body.isFragment).map(body => {
         const projected = project3D(body.x, body.y, body.z);
         return {
             body: body,
@@ -4698,13 +4718,14 @@ function animate() {
     updateBodiesPosition();
     drawBodies();
 
-    // 更新UI信息
-    document.getElementById('body-count').textContent = `天体数量: ${bodies.length}`;
+    // 更新UI信息（排除碎片）
+    const realBodyCount = bodies.filter(body => !body.isFragment).length;
+    document.getElementById('body-count').textContent = `天体数量: ${realBodyCount}`;
     document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
 
     // 更新行星P表面温度
-    const temperature = calculatePlanetPTemperature();
-    document.getElementById('temperature-info').textContent = `行星P表面温度: ${temperature} °C`;
+    const tempResult = calculatePlanetPTemperature();
+    document.getElementById('temperature-info').textContent = `行星P表面温度: ${tempResult.temp} °C`;
     
     // 更新第一视角按钮状态
     updateFirstPersonButtonState();
@@ -4718,10 +4739,15 @@ function animate() {
     checkCivilizationMilestone();
 
     // 检查温度并显示相应消息（仅当文明尚未记录时）
-    if (temperature !== '--' && !lastCivilizationRecorded) {
-        const temp = parseFloat(temperature);
+    if (tempResult.temp !== '--' && !lastCivilizationRecorded) {
+        const temp = parseFloat(tempResult.temp);
+        isDestructionByExplosion = tempResult.isExplosion;
         if (temp > 400) {
-            showTemperatureMessage("在阳光的烈焰下毁灭了……文明的种子仍然存在");
+            if (tempResult.isExplosion) {
+                showTemperatureMessage("在恒星爆炸的烈焰中化为灰烬……文明的种子仍然存在");
+            } else {
+                showTemperatureMessage("在阳光的烈焰下毁灭了……文明的种子仍然存在");
+            }
         } else if (temp < -100) {
             showTemperatureMessage("在无尽的凛冬下毁灭了……文明的种子仍然存在");
         }
