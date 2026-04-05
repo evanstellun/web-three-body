@@ -422,22 +422,56 @@ class Nebula {
             this.layerOffsets.push(layerOffset);
             
             // 预计算这一层的形状数据 - 存储每个方向的有效半径
+            // 使用更复杂的噪声函数生成更真实的星云形状
             const shapeData = [];
-            const segments = 24;
-            const rings = 16;
+            const segments = 32;
+            const rings = 20;
+            
+            // 星云形状参数 - 椭圆形状，长轴在Y方向
+            const elongation = 1.5 + Math.random() * 0.5; // 长轴与短轴的比例
+            
             for (let ring = 0; ring <= rings; ring++) {
                 const phi = (ring / rings) * Math.PI;
                 for (let seg = 0; seg <= segments; seg++) {
                     const theta = (seg / segments) * Math.PI * 2;
                     
-                    // 计算这个方向的有效半径 - 减少不规则程度
-                    const noise1 = Math.sin(theta * 2 + layerOffset.x * 5 + this.randomSeed * 0.1);
-                    const noise2 = Math.cos(theta * 4 + layerOffset.y * 5 + this.randomSeed * 0.15);
-                    const noise3 = Math.sin(phi * 2 + this.randomSeed * 0.2);
-                    const noise4 = Math.cos(phi * 3 + this.randomSeed * 0.25);
-                    const noiseVal = (noise1 + noise2 + noise3 + noise4) * 0.25;
+                    // 将球坐标转换为笛卡尔坐标
+                    const x = Math.sin(phi) * Math.cos(theta);
+                    const y = Math.cos(phi);
+                    const z = Math.sin(phi) * Math.sin(theta);
                     
-                    const effectiveRadius = 0.85 + (noiseVal - 0.5) * 0.25;
+                    // 应用椭圆变形 - 在Y方向拉伸
+                    const yStretched = y * elongation;
+                    
+                    // 计算变形后的方向向量
+                    const length = Math.sqrt(x * x + yStretched * yStretched + z * z);
+                    const nx = x / length;
+                    const ny = yStretched / length;
+                    const nz = z / length;
+                    
+                    // 生成湍流噪声 - 使用多层正弦波叠加
+                    const seed = this.randomSeed * 0.1;
+                    const noise1 = Math.sin(theta * 3 + layerOffset.x * 5 + seed);
+                    const noise2 = Math.cos(theta * 5 + layerOffset.y * 3 + seed * 1.3);
+                    const noise3 = Math.sin(phi * 4 + seed * 0.7);
+                    const noise4 = Math.cos(phi * 6 + layerOffset.z * 4 + seed * 1.1);
+                    const noise5 = Math.sin(theta * 7 + phi * 3 + seed * 0.9);
+                    
+                    // 组合噪声 - 主要形状 + 细节湍流
+                    const baseNoise = (noise1 + noise2 + noise3) * 0.33;
+                    const detailNoise = (noise4 + noise5) * 0.25 * 0.3; // 细节噪声权重较小
+                    const noiseVal = baseNoise * 0.7 + detailNoise;
+                    
+                    // 边缘衰减 - 让星云边缘更柔和
+                    const edgeFade = Math.sin(phi) * 0.3 + 0.7;
+                    
+                    // 计算有效半径 - 基础形状 + 噪声变形
+                    let effectiveRadius = 0.9 + noiseVal * 0.2;
+                    effectiveRadius *= edgeFade;
+                    
+                    // 确保半径在合理范围内
+                    effectiveRadius = Math.max(0.3, Math.min(1.2, effectiveRadius));
+                    
                     shapeData.push(effectiveRadius);
                 }
             }
@@ -3351,6 +3385,10 @@ function updateStarsInFirstPersonView(planetP) {
 }
 
 // 更新第一视角中的星云
+// 星云运动完全符合天体真实视运动规律：
+// 1. 星云投影到天球上，位置随天球自转而改变（沿天球自转轴做圆周运动）
+// 2. 星云始终面向玩家，形状不会自旋
+// 3. 星云与背景星空保持相对静止
 function updateNebulasInFirstPersonView(planetP) {
     if (!firstPersonInitialized) return;
     
@@ -3370,18 +3408,24 @@ function updateNebulasInFirstPersonView(planetP) {
         
         let x, y, z, nebulaSize;
         
-        // 所有星云都投影到天球上，相对天空静止
+        // 所有星云都投影到天球上
+        // 纬度：星云与观察者连线与水平面（XZ平面）的夹角
         const latitude = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+        // 经度：星云在水平面上的投影与正北方向（Z轴）的夹角
         let longitude = Math.atan2(dx, dz);
         
+        // 标准化经度到[-π, π]范围
         while (longitude > Math.PI) longitude -= 2 * Math.PI;
         while (longitude < -Math.PI) longitude += 2 * Math.PI;
         
+        // 将经纬度转换为3D空间中的位置（未旋转前）
         const skyRadius = 480;
         x = skyRadius * Math.cos(latitude) * Math.sin(longitude);
         y = skyRadius * Math.sin(latitude);
         z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
         
+        // 应用天球自转（绕X轴旋转skyRotation角度）
+        // 这是天体视运动的核心：所有天体都随着天球一起绕天球自转轴旋转
         const cos = Math.cos(skyRotation);
         const sin = Math.sin(skyRotation);
         const yRotated = y * cos - z * sin;
@@ -3414,7 +3458,7 @@ function updateNebulasInFirstPersonView(planetP) {
         
         const tempFactor = Math.max(0.5, Math.min(1, nebula.temperature / 10000));
         
-        // 创建多层星云效果，更对称、更像真实星云
+        // 创建多层星云效果
         const layers = 4;
         for (let layer = 0; layer < layers; layer++) {
             const layerScale = 0.5 + (layer / layers) * 0.7;
@@ -3424,8 +3468,9 @@ function updateNebulasInFirstPersonView(planetP) {
             const shapeData = nebula.layerShapeData[layer % nebula.layerShapeData.length];
             
             // 创建球体几何体并应用预计算的不规则形状
-            const segments = 24;
-            const rings = 16;
+            // 使用更高的分段数以获得更平滑的星云形状
+            const segments = 32;
+            const rings = 20;
             const layerGeometry = new THREE.SphereGeometry(layerSize, segments, rings);
             
             // 应用不规则形状
@@ -3433,15 +3478,15 @@ function updateNebulasInFirstPersonView(planetP) {
             for (let i = 0, vertexIndex = 0; i <= rings; i++) {
                 for (let j = 0; j <= segments; j++) {
                     const idx = vertexIndex * 3;
-                    const x = positions[idx];
-                    const y = positions[idx + 1];
-                    const z = positions[idx + 2];
+                    const px = positions[idx];
+                    const py = positions[idx + 1];
+                    const pz = positions[idx + 2];
                     
-                    const length = Math.sqrt(x * x + y * y + z * z);
+                    const length = Math.sqrt(px * px + py * py + pz * pz);
                     if (length > 0) {
-                        const nx = x / length;
-                        const ny = y / length;
-                        const nz = z / length;
+                        const nx = px / length;
+                        const ny = py / length;
+                        const nz = pz / length;
                         
                         // 获取这个方向的有效半径
                         const dataIndex = i * (segments + 1) + j;
@@ -4003,7 +4048,20 @@ function renderFirstPersonScene() {
         });
     }
     
-    // 星云位置已经在 updateNebulasInFirstPersonView 中应用了 skyRotation，不需要再旋转 mesh
+    // 星云长轴对准北/南天极（天球自转轴方向）
+    // 天球自转轴是X轴，所以星云的长轴应该对准X轴方向
+    // 这样星云会随着天球自转而改变方向，与背景星空保持相对静止
+    if (nebulaObjects && nebulaObjects.length > 0) {
+        nebulaObjects.forEach(nebulaObj => {
+            if (nebulaObj.mesh) {
+                // 重置旋转
+                nebulaObj.mesh.rotation.set(0, 0, 0);
+                // 让星云的长轴（Y轴）对准天球自转轴（X轴）
+                // 通过旋转使长轴指向北/南天极
+                nebulaObj.mesh.rotateZ(Math.PI / 2);
+            }
+        });
+    }
     
     // 渲染场景
     firstPersonRenderer.render(firstPersonScene, firstPersonCamera);
