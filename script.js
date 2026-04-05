@@ -407,15 +407,41 @@ class Nebula {
         // 保存固定的随机种子，确保形状在整个生命周期内不变
         this.randomSeed = Math.random() * 1000;
         
+        // 预计算并存储形状数据，确保不规则形状固定
+        this.layerShapeData = [];
         this.layerOffsets = [];
-        for (let i = 0; i < 4; i++) {
-            this.layerOffsets.push({
+        const layers = 4;
+        for (let i = 0; i < layers; i++) {
+            const layerOffset = {
                 x: (Math.random() - 0.5) * 0.5,
                 y: (Math.random() - 0.5) * 0.3,
                 z: (Math.random() - 0.5) * 0.5,
-                scale: 0.6 + (i / 4) * 0.8,
+                scale: 0.6 + (i / layers) * 0.8,
                 rotation: Math.random() * Math.PI * 2
-            });
+            };
+            this.layerOffsets.push(layerOffset);
+            
+            // 预计算这一层的形状数据 - 存储每个方向的有效半径
+            const shapeData = [];
+            const segments = 24;
+            const rings = 16;
+            for (let ring = 0; ring <= rings; ring++) {
+                const phi = (ring / rings) * Math.PI;
+                for (let seg = 0; seg <= segments; seg++) {
+                    const theta = (seg / segments) * Math.PI * 2;
+                    
+                    // 计算这个方向的有效半径 - 减少不规则程度
+                    const noise1 = Math.sin(theta * 2 + layerOffset.x * 5 + this.randomSeed * 0.1);
+                    const noise2 = Math.cos(theta * 4 + layerOffset.y * 5 + this.randomSeed * 0.15);
+                    const noise3 = Math.sin(phi * 2 + this.randomSeed * 0.2);
+                    const noise4 = Math.cos(phi * 3 + this.randomSeed * 0.25);
+                    const noiseVal = (noise1 + noise2 + noise3 + noise4) * 0.25;
+                    
+                    const effectiveRadius = 0.85 + (noiseVal - 0.5) * 0.25;
+                    shapeData.push(effectiveRadius);
+                }
+            }
+            this.layerShapeData.push(shapeData);
         }
         
         this.coreBody = coreBody;
@@ -3395,9 +3421,42 @@ function updateNebulasInFirstPersonView(planetP) {
             const layerSize = nebulaSize * layerScale;
             const layerAlpha = 1.0 - (layer / layers) * 0.5;
             const layerOffset = nebula.layerOffsets[layer % nebula.layerOffsets.length];
+            const shapeData = nebula.layerShapeData[layer % nebula.layerShapeData.length];
             
-            // 使用完美的球体，不进行任何几何体变形 - 避免任何可能的自旋
-            const layerGeometry = new THREE.SphereGeometry(layerSize, 24, 16);
+            // 创建球体几何体并应用预计算的不规则形状
+            const segments = 24;
+            const rings = 16;
+            const layerGeometry = new THREE.SphereGeometry(layerSize, segments, rings);
+            
+            // 应用不规则形状
+            const positions = layerGeometry.attributes.position.array;
+            for (let i = 0, vertexIndex = 0; i <= rings; i++) {
+                for (let j = 0; j <= segments; j++) {
+                    const idx = vertexIndex * 3;
+                    const x = positions[idx];
+                    const y = positions[idx + 1];
+                    const z = positions[idx + 2];
+                    
+                    const length = Math.sqrt(x * x + y * y + z * z);
+                    if (length > 0) {
+                        const nx = x / length;
+                        const ny = y / length;
+                        const nz = z / length;
+                        
+                        // 获取这个方向的有效半径
+                        const dataIndex = i * (segments + 1) + j;
+                        const effectiveRadius = shapeData[dataIndex] || 0.75;
+                        
+                        // 应用不规则形状
+                        positions[idx] = nx * layerSize * effectiveRadius;
+                        positions[idx + 1] = ny * layerSize * effectiveRadius;
+                        positions[idx + 2] = nz * layerSize * effectiveRadius;
+                    }
+                    vertexIndex++;
+                }
+            }
+            layerGeometry.attributes.position.needsUpdate = true;
+            layerGeometry.computeVertexNormals();
             
             const layerMaterial = new THREE.ShaderMaterial({
                 uniforms: {
@@ -3427,52 +3486,20 @@ function updateNebulasInFirstPersonView(planetP) {
                     uniform float temperature;
                     uniform float layerAlpha;
                     uniform float layerSize;
-                    uniform float randomSeed;
-                    uniform float layerOffsetX;
-                    uniform float layerOffsetY;
                     varying float vGroundClip;
                     varying vec3 vPosition;
                     
-                    // 简单的3D噪声函数，基于球坐标和固定种子
-                    float hash(float x) {
-                        return fract(sin(x) * 43758.5453123);
-                    }
-                    
                     void main() {
-                        // 完全基于3D位置计算，与UV无关，确保旋转对称
                         vec3 normPos = vPosition / layerSize;
                         float distanceToCenter = length(normPos);
                         
-                        if (distanceToCenter > 1.2) {
+                        if (distanceToCenter > 1.0) {
                             discard;
                         }
                         
-                        // 使用球坐标计算，确保形状固定且对称
-                        vec3 dir = normalize(normPos);
-                        float theta = atan(dir.z, dir.x);
-                        float phi = acos(dir.y);
+                        float coreFactor = 1.0 - distanceToCenter;
+                        coreFactor = pow(coreFactor, 0.5);
                         
-                        // 使用固定种子的简单噪声，基于球坐标 - 增加更多频率
-                        float noiseVal1 = hash(theta * 5.0 + randomSeed + layerOffsetX * 50.0);
-                        float noiseVal2 = hash(theta * 12.0 + randomSeed * 2.0 + layerOffsetY * 50.0);
-                        float noiseVal3 = hash(phi * 4.0 + randomSeed * 1.5 + layerOffsetX * 50.0);
-                        float noiseVal4 = hash(phi * 9.0 + randomSeed * 2.5 + layerOffsetY * 50.0);
-                        
-                        float noiseVal = (noiseVal1 + noiseVal2 + noiseVal3 + noiseVal4) * 0.25;
-                        
-                        // 让噪声影响有效半径，创造明显的不规则边界
-                        float effectiveRadius = 0.85 + (noiseVal - 0.5) * 0.55;
-                        
-                        // 在不规则边界外的像素直接丢弃
-                        if (distanceToCenter > effectiveRadius) {
-                            discard;
-                        }
-                        
-                        // 基于距离中心的距离计算透明度
-                        float coreFactor = 1.0 - distanceToCenter / effectiveRadius;
-                        coreFactor = pow(coreFactor, 0.4);
-                        
-                        // 混合两种颜色，更自然的过渡
                         vec3 mixedColor1 = color1 * 0.6 + color2 * 0.4;
                         vec3 mixedColor2 = color1 * 0.4 + color2 * 0.6;
                         vec3 color = mix(mixedColor1, mixedColor2, smoothstep(0.2, 0.8, distanceToCenter));
@@ -3480,7 +3507,6 @@ function updateNebulasInFirstPersonView(planetP) {
                         float alpha = coreFactor * temperature * layerAlpha * 0.9;
                         alpha *= smoothstep(0.0, 1.0, vGroundClip);
                         
-                        // 中心稍微亮一点
                         vec3 brightColor = color * (1.0 + coreFactor * 0.3);
                         
                         gl_FragColor = vec4(brightColor, alpha);
