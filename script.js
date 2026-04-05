@@ -404,6 +404,9 @@ class Nebula {
         this.age = 0;
         this.isStable = false;
         
+        // 保存固定的随机种子，确保形状在整个生命周期内不变
+        this.randomSeed = Math.random() * 1000;
+        
         this.layerOffsets = [];
         for (let i = 0; i < 4; i++) {
             this.layerOffsets.push({
@@ -1465,7 +1468,7 @@ function showTemperatureMessage() {
         ],
         default: [
             `第${civilizationId}号文明在阳光的烈焰下毁灭了`,
-            `第${civilizationId}号文明在恒乱纪元的高温中消亡`,
+            `第${civilizationId}号文明在乱纪元的高温中消亡`,
             `第${civilizationId}号文明在太阳的炙烤下消失了`,
             `第${civilizationId}号文明在烈焰中化为灰烬`
         ]
@@ -1486,7 +1489,7 @@ function showTemperatureMessage() {
         ],
         default: [
             `第${civilizationId}号文明被冻结在了无尽的凛冬中`,
-            `第${civilizationId}号文明在恒乱纪元的严寒中消亡`,
+            `第${civilizationId}号文明在乱纪元的严寒中消亡`,
             `第${civilizationId}号文明被冰封在了时间的长河中`,
             `第${civilizationId}号文明在寒冷中沉睡，再也没有醒来`,
             `第${civilizationId}号文明被冻结成了永恒的雕塑`
@@ -3360,7 +3363,7 @@ function updateNebulasInFirstPersonView(planetP) {
         y = yRotated;
         z = zRotated;
         
-        nebulaSize = nebula.currentRadius * 0.25;
+        nebulaSize = nebula.currentRadius * 0.3;
         
         // 解析星云颜色
         let r1, g1, b1;
@@ -3385,112 +3388,33 @@ function updateNebulasInFirstPersonView(planetP) {
         
         const tempFactor = Math.max(0.5, Math.min(1, nebula.temperature / 10000));
         
-        // 创建星云着色器材质（更璀璨）
-        const nebulaMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                color1: { value: new THREE.Color(r1, g1, b1) },
-                color2: { value: new THREE.Color(r2, g2, b2) },
-                temperature: { value: tempFactor }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                varying float vGroundClip;
-                
-                void main() {
-                    vUv = uv;
-                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                    vGroundClip = max(0.0, worldPos.y + 0.5);
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 color1;
-                uniform vec3 color2;
-                uniform float temperature;
-                varying vec2 vUv;
-                varying float vGroundClip;
-                
-                void main() {
-                    float distanceToCenter = distance(vUv, vec2(0.5, 0.5)) * 2.0;
-                    
-                    if (distanceToCenter > 1.0) {
-                        discard;
-                    }
-                    
-                    vec3 color = mix(color1, color2, distanceToCenter);
-                    
-                    float coreFactor = 1.0 - distanceToCenter;
-                    coreFactor = pow(coreFactor, 0.3);
-                    
-                    float alpha = coreFactor * temperature * 1.5;
-                    alpha *= smoothstep(0.0, 1.0, vGroundClip);
-                    
-                    vec3 brightColor = color * (1.0 + coreFactor * 0.5);
-                    
-                    gl_FragColor = vec4(brightColor, alpha);
-                }
-            `,
-            transparent: true,
-            depthWrite: false,
-            depthTest: false,
-            blending: THREE.AdditiveBlending,
-            side: THREE.DoubleSide
-        });
-        
-        // 创建多层星云效果，更像真实星云（扁平、弥散）
+        // 创建多层星云效果，更对称、更像真实星云
         const layers = 4;
         for (let layer = 0; layer < layers; layer++) {
-            const layerOffset = nebula.layerOffsets[layer];
-            const layerScale = layerOffset.scale;
+            const layerScale = 0.5 + (layer / layers) * 0.7;
             const layerSize = nebulaSize * layerScale;
             const layerAlpha = 1.0 - (layer / layers) * 0.5;
+            const layerOffset = nebula.layerOffsets[layer % nebula.layerOffsets.length];
             
-            const offsetX = layerOffset.x * layerSize * 0.5;
-            const offsetY = layerOffset.y * layerSize * 0.3;
-            const offsetZ = layerOffset.z * layerSize * 0.5;
-            
-            // 使用扁椭球体，形状在天球上保持固定
-            const xScale = 1.3;
-            const yScale = 0.7;
-            const zScale = 1.1;
-            
-            const layerGeometry = new THREE.SphereGeometry(layerSize, 20, 16);
-            
-            // 变形几何体，创造固定的不规则形状
-            const positions = layerGeometry.attributes.position.array;
-            for (let i = 0; i < positions.length; i += 3) {
-                positions[i] *= xScale;
-                positions[i + 1] *= yScale;
-                positions[i + 2] *= zScale;
-                
-                const nx = positions[i] / layerSize;
-                const ny = positions[i + 1] / layerSize;
-                const nz = positions[i + 2] / layerSize;
-                
-                const noise = Math.sin(nx * 5.0 + layerOffset.x * 10) * 
-                              Math.cos(ny * 7.0 + layerOffset.y * 10) * 0.15;
-                
-                positions[i] *= (1.0 + noise);
-                positions[i + 1] *= (1.0 + noise * 0.8);
-                positions[i + 2] *= (1.0 + noise);
-            }
-            layerGeometry.attributes.position.needsUpdate = true;
-            layerGeometry.computeVertexNormals();
+            // 使用完美的球体，不进行任何几何体变形 - 避免任何可能的自旋
+            const layerGeometry = new THREE.SphereGeometry(layerSize, 24, 16);
             
             const layerMaterial = new THREE.ShaderMaterial({
                 uniforms: {
                     color1: { value: new THREE.Color(r1, g1, b1) },
                     color2: { value: new THREE.Color(r2, g2, b2) },
                     temperature: { value: tempFactor },
-                    layerAlpha: { value: layerAlpha }
+                    layerAlpha: { value: layerAlpha },
+                    layerSize: { value: layerSize },
+                    randomSeed: { value: nebula.randomSeed },
+                    layerOffsetX: { value: layerOffset.x },
+                    layerOffsetY: { value: layerOffset.y }
                 },
                 vertexShader: `
-                    varying vec2 vUv;
                     varying float vGroundClip;
                     varying vec3 vPosition;
                     
                     void main() {
-                        vUv = uv;
                         vPosition = position;
                         vec4 worldPos = modelMatrix * vec4(position, 1.0);
                         vGroundClip = max(0.0, worldPos.y + 0.5);
@@ -3502,31 +3426,62 @@ function updateNebulasInFirstPersonView(planetP) {
                     uniform vec3 color2;
                     uniform float temperature;
                     uniform float layerAlpha;
-                    varying vec2 vUv;
+                    uniform float layerSize;
+                    uniform float randomSeed;
+                    uniform float layerOffsetX;
+                    uniform float layerOffsetY;
                     varying float vGroundClip;
                     varying vec3 vPosition;
                     
+                    // 简单的3D噪声函数，基于球坐标和固定种子
+                    float hash(float x) {
+                        return fract(sin(x) * 43758.5453123);
+                    }
+                    
                     void main() {
-                        float distanceToCenter = distance(vUv, vec2(0.5, 0.5)) * 2.0;
+                        // 完全基于3D位置计算，与UV无关，确保旋转对称
+                        vec3 normPos = vPosition / layerSize;
+                        float distanceToCenter = length(normPos);
                         
-                        if (distanceToCenter > 1.0) {
+                        if (distanceToCenter > 1.2) {
                             discard;
                         }
                         
-                        float centerDist = length(vPosition);
+                        // 使用球坐标计算，确保形状固定且对称
+                        vec3 dir = normalize(normPos);
+                        float theta = atan(dir.z, dir.x);
+                        float phi = acos(dir.y);
                         
-                        // 混合两种颜色，让它们更接近
-                        vec3 mixedColor1 = color1 * 0.7 + color2 * 0.3;
-                        vec3 mixedColor2 = color1 * 0.3 + color2 * 0.7;
-                        vec3 color = mix(mixedColor1, mixedColor2, distanceToCenter);
+                        // 使用固定种子的简单噪声，基于球坐标 - 增加更多频率
+                        float noiseVal1 = hash(theta * 5.0 + randomSeed + layerOffsetX * 50.0);
+                        float noiseVal2 = hash(theta * 12.0 + randomSeed * 2.0 + layerOffsetY * 50.0);
+                        float noiseVal3 = hash(phi * 4.0 + randomSeed * 1.5 + layerOffsetX * 50.0);
+                        float noiseVal4 = hash(phi * 9.0 + randomSeed * 2.5 + layerOffsetY * 50.0);
                         
-                        float coreFactor = 1.0 - distanceToCenter;
-                        coreFactor = pow(coreFactor, 0.25);
+                        float noiseVal = (noiseVal1 + noiseVal2 + noiseVal3 + noiseVal4) * 0.25;
                         
-                        float alpha = coreFactor * temperature * layerAlpha * 0.8;
+                        // 让噪声影响有效半径，创造明显的不规则边界
+                        float effectiveRadius = 0.85 + (noiseVal - 0.5) * 0.55;
+                        
+                        // 在不规则边界外的像素直接丢弃
+                        if (distanceToCenter > effectiveRadius) {
+                            discard;
+                        }
+                        
+                        // 基于距离中心的距离计算透明度
+                        float coreFactor = 1.0 - distanceToCenter / effectiveRadius;
+                        coreFactor = pow(coreFactor, 0.4);
+                        
+                        // 混合两种颜色，更自然的过渡
+                        vec3 mixedColor1 = color1 * 0.6 + color2 * 0.4;
+                        vec3 mixedColor2 = color1 * 0.4 + color2 * 0.6;
+                        vec3 color = mix(mixedColor1, mixedColor2, smoothstep(0.2, 0.8, distanceToCenter));
+                        
+                        float alpha = coreFactor * temperature * layerAlpha * 0.9;
                         alpha *= smoothstep(0.0, 1.0, vGroundClip);
                         
-                        vec3 brightColor = color;
+                        // 中心稍微亮一点
+                        vec3 brightColor = color * (1.0 + coreFactor * 0.3);
                         
                         gl_FragColor = vec4(brightColor, alpha);
                     }
@@ -3539,23 +3494,8 @@ function updateNebulasInFirstPersonView(planetP) {
             });
             
             const layerMesh = new THREE.Mesh(layerGeometry, layerMaterial);
-            layerMesh.position.set(x + offsetX, y + offsetY, z + offsetZ);
-            layerMesh.renderOrder = -3 + layer;
-            
-            // 让星云扁平面始终垂直于观察者视线
-            const nebulaPos = new THREE.Vector3(x + offsetX, y + offsetY, z + offsetZ);
-            const observerPos = new THREE.Vector3(0, 10, 0);
-            
-            // 计算从星云到观察者的向量（视线方向）
-            const viewDir = new THREE.Vector3();
-            viewDir.subVectors(observerPos, nebulaPos).normalize();
-            
-            // 星云的原始最短轴是Y轴（0.7），让这个轴与视线对齐
-            // 构造旋转矩阵，让Y轴指向视线方向
-            const yAxis = new THREE.Vector3(0, 1, 0);
-            const quaternion = new THREE.Quaternion();
-            quaternion.setFromUnitVectors(yAxis, viewDir);
-            layerMesh.setRotationFromQuaternion(quaternion);
+            layerMesh.position.set(x, y, z);
+            layerMesh.renderOrder = -4 + layer;
             
             firstPersonScene.add(layerMesh);
             newNebulaObjects.push({
