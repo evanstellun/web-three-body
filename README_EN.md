@@ -29,7 +29,22 @@ Three-Body Civilization Simulator is a web-based interactive 3D simulator that c
 - Simulate the impact of temperature changes on planet P's surface on civilization
 - Divide civilization development into seven stages: Primitive Age, Feudal Age, Steam Age, Electrical Age, Atomic Age, Information Age, and Interstellar Exploration Age
 - Record the existence time, development stage, and final outcome of each civilization
-- Civilization outcomes include: destruction by high temperature, destruction by low temperature, or successful flight to a new home
+- Multiple civilization outcomes: destruction by high temperature, destruction by low temperature, destruction by stellar explosion, destruction by fragment impact, planet swallowed by star, closed by observer, or successful flight to a new home
+- Literary destruction descriptions fitting the *Three-Body Problem* novel
+
+### Stellar Collision and Explosion System
+
+- Stellar collisions produce both shockwaves and nebulae simultaneously
+- Shockwaves rapidly expand outward, exerting outward thrust and heating effects on nearby celestial bodies (inverse square law)
+- Nebulae maintain irregular shapes and rotate with the celestial sphere to produce realistic apparent motion
+- Observer view and first-person view rendering of shockwaves and nebulae
+
+### Fragment System
+
+- Stellar collisions produce 10-20 fragments, 0.1-5 times the mass of a planet
+- Fragments participate in celestial gravity calculations and all physical operations
+- Fragment impacts on planets directly destroy civilizations
+- Fragment orbits use the original star's color and are not displayed in the celestial body list
 
 ### Interactive Experience
 
