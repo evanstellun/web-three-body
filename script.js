@@ -602,8 +602,8 @@ class Shockwave {
         if (distance > this.radius || distance < this.radius - this.shockwaveSpeed * 2) {
             return 0;  // 只在冲击波前沿附近产生推力
         }
-        const basePush = this.power * 1000;
-        return basePush / (distance * distance + 1);
+        const basePush = this.power * 1;  // 减小推力
+        return basePush / (distance * distance + 10000);  // 增加分母，让推力随距离衰减更快
     }
     
     // 获取冲击波对天体的升温效果
@@ -615,8 +615,8 @@ class Shockwave {
             if (this.bodyHeatEffects.has(bodyKey)) {
                 const effect = this.bodyHeatEffects.get(bodyKey);
                 const timeSincePeak = this.age - effect.lastTime;
-                // 冷却速率为每刻减少峰值的1%，最低回到0
-                const coolFactor = Math.max(0, 1 - timeSincePeak * 0.01);
+                // 冷却速率为每刻减少峰值的2%，最低回到0（加速冷却）
+                const coolFactor = Math.max(0, 1 - timeSincePeak * 0.02);
                 return effect.peakTemp * coolFactor;
             }
             return 0;
@@ -624,8 +624,9 @@ class Shockwave {
         
         // 天体在冲击波范围内
         const progress = this.age / this.maxAge;
-        const baseHeat = this.power * 50000 * (1 - progress * 0.7);
-        const distanceFactor = 1 - (distance / this.radius);  // 越靠近中心升温越多
+        const baseHeat = this.power * 50 * (1 - progress * 0.7);  // 大幅减小升温
+        // 距离越远升温越少，只有较近的距离才会有明显升温
+        const distanceFactor = Math.max(0, 1 - (distance / this.radius) * 1.5);
         const currentHeat = baseHeat * distanceFactor * distanceFactor;
         
         if (this.bodyHeatEffects.has(bodyKey)) {
