@@ -615,8 +615,8 @@ class Shockwave {
             if (this.bodyHeatEffects.has(bodyKey)) {
                 const effect = this.bodyHeatEffects.get(bodyKey);
                 const timeSincePeak = this.age - effect.lastTime;
-                // 冷却速率为每刻减少峰值的2%，最低回到0（加速冷却）
-                const coolFactor = Math.max(0, 1 - timeSincePeak * 0.02);
+                // 冷却速率为每刻减少峰值的10%，最低回到0（快速冷却）
+                const coolFactor = Math.max(0, 1 - timeSincePeak * 0.1);
                 return effect.peakTemp * coolFactor;
             }
             return 0;
@@ -624,9 +624,10 @@ class Shockwave {
         
         // 天体在冲击波范围内
         const progress = this.age / this.maxAge;
-        const baseHeat = this.power * 50 * (1 - progress * 0.7);  // 大幅减小升温
-        // 距离越远升温越少，只有较近的距离才会有明显升温
-        const distanceFactor = Math.max(0, 1 - (distance / this.radius) * 1.5);
+        // 进一步减小升温幅度，特别是对恒星
+        const baseHeat = this.power * 10 * (1 - progress * 0.7);  // 极小升温
+        // 距离越远升温越少，只有非常近的距离才会有明显升温
+        const distanceFactor = Math.max(0, 1 - (distance / this.radius) * 2);
         const currentHeat = baseHeat * distanceFactor * distanceFactor;
         
         if (this.bodyHeatEffects.has(bodyKey)) {
@@ -1073,9 +1074,9 @@ function checkCollisions() {
                     const fragmentBody = isFragment1 ? body1 : body2;
                     const starBody = isFragment1 ? body2 : body1;
                     
-                    // 检查碎片是否处于无敌状态（创建后5刻内）
+                    // 检查碎片是否处于无敌状态（创建后10刻内）
                     const fragmentAge = time - (fragmentBody.creationTime || 0);
-                    if (fragmentAge < 5) {
+                    if (fragmentAge < 10) {
                         // 碎片处于无敌状态，跳过此次碰撞处理
                         continue;
                     }
@@ -1262,8 +1263,8 @@ function checkCollisions() {
                         const fragY = newY + fragOffsetRadius * Math.sin(fragPhi) * Math.sin(fragTheta);
                         const fragZ = newZ + fragOffsetRadius * Math.cos(fragPhi);
                         
-                        // 随机速度（高速飞散）
-                        const fragSpeed = Math.random() * 30 + 20;
+                        // 随机速度（低速飞散）
+                        const fragSpeed = Math.random() * 5 + 2; // 进一步减小速度
                         const fragVTheta = Math.random() * Math.PI * 2;
                         const fragVPhi = Math.random() * Math.PI;
                         
@@ -2086,20 +2087,20 @@ function updateBodiesPosition() {
         // 星云升温永久叠加
         bodies[i].baseTemperature += totalHeating * dt;
         
-        // 冲击波升温：快速升到峰值，然后缓缓降温
+        // 冲击波升温：快速升到峰值，然后快速降温
         if (shockwaveHeating > 0) {
             // 有冲击波加热，更新峰值
             bodies[i].shockwavePeak = Math.max(bodies[i].shockwavePeak, shockwaveHeating);
             bodies[i].shockwaveTemp = bodies[i].shockwavePeak;
             bodies[i].shockwaveCooling = false;
         } else {
-            // 没有冲击波加热，开始冷却
+            // 没有冲击波加热，开始快速冷却
             if (bodies[i].shockwaveTemp > 0) {
                 bodies[i].shockwaveCooling = true;
-                // 冷却速率：每刻减少峰值的1%
-                bodies[i].shockwaveTemp *= 0.99;
+                // 冷却速率：每刻减少温度的10%（快速冷却）
+                bodies[i].shockwaveTemp *= 0.9;
                 // 温度接近0时重置
-                if (bodies[i].shockwaveTemp < 1) {
+                if (bodies[i].shockwaveTemp < 0.5) {
                     bodies[i].shockwaveTemp = 0;
                     bodies[i].shockwavePeak = 0;
                     bodies[i].shockwaveCooling = false;
