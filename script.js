@@ -554,7 +554,7 @@ const greekLetters = ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ'
 
 // 冲击波相关
 let shockwaves = [];
-let fragmentCounter = {};
+let fragmentCounter = 0; // 全局碎片计数器，用于生成 f-1, f-2 等名称
 
 class Shockwave {
     constructor(id, x, y, z, vx, vy, vz, power, color1, color2) {
@@ -574,6 +574,8 @@ class Shockwave {
         this.maxAge = 100;  // 冲击波存在的时间
         this.isActive = true;
         this.hasAffected = new Set();  // 记录已经影响过的天体
+        this.temperature = power * 1000;  // 冲击波初始温度
+        this.bodyHeatEffects = new Map();  // 记录每个天体的升温效果 { bodyName: { peakTemp, coolTime, lastTime } }
     }
     
     update(dt) {
@@ -585,6 +587,10 @@ class Shockwave {
         // 冲击波以恒定速度快速向外扩散
         this.radius += this.shockwaveSpeed * dt;
         this.age += dt;
+        
+        // 冲击波温度随扩张逐渐降低
+        const progress = this.age / this.maxAge;
+        this.temperature = this.power * 1000 * (1 - progress * 0.8);
         
         if (this.age >= this.maxAge) {
             this.isActive = false;
@@ -600,11 +606,45 @@ class Shockwave {
         return basePush / (distance * distance + 1);
     }
     
-    // 获取冲击波的升温效果（与距离平方成反比）
-    getHeatingEffect(distance) {
-        if (distance > this.radius) return 0;
-        const baseHeat = this.power * 100000;
-        return baseHeat / (distance * distance + 1);
+    // 获取冲击波对天体的升温效果
+    getHeatingEffect(body, distance) {
+        const bodyKey = body.name;
+        
+        if (distance > this.radius) {
+            // 天体已离开冲击波范围，返回冷却效果
+            if (this.bodyHeatEffects.has(bodyKey)) {
+                const effect = this.bodyHeatEffects.get(bodyKey);
+                const timeSincePeak = this.age - effect.lastTime;
+                // 冷却速率为每刻减少峰值的1%，最低回到0
+                const coolFactor = Math.max(0, 1 - timeSincePeak * 0.01);
+                return effect.peakTemp * coolFactor;
+            }
+            return 0;
+        }
+        
+        // 天体在冲击波范围内
+        const progress = this.age / this.maxAge;
+        const baseHeat = this.power * 50000 * (1 - progress * 0.7);
+        const distanceFactor = 1 - (distance / this.radius);  // 越靠近中心升温越多
+        const currentHeat = baseHeat * distanceFactor * distanceFactor;
+        
+        if (this.bodyHeatEffects.has(bodyKey)) {
+            const effect = this.bodyHeatEffects.get(bodyKey);
+            // 更新上次接触时间
+            effect.lastTime = this.age;
+            // 取最大值作为峰值温度
+            if (currentHeat > effect.peakTemp) {
+                effect.peakTemp = currentHeat;
+            }
+            return effect.peakTemp;
+        } else {
+            // 首次接触，记录峰值温度和时间
+            this.bodyHeatEffects.set(bodyKey, {
+                peakTemp: currentHeat,
+                lastTime: this.age
+            });
+            return currentHeat;
+        }
     }
 }
 
@@ -758,7 +798,7 @@ function randomizeBodies() {
     
     // 重置冲击波和碎片
     shockwaves = [];
-    fragmentCounter = {};
+    fragmentCounter = 0;
     
     // 重置updateStarInfo调用计数器
     if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
@@ -887,7 +927,7 @@ function resetSimulation() {
     
     // 重置冲击波和碎片
     shockwaves = [];
-    fragmentCounter = {};
+    fragmentCounter = 0;
     
     // 重置updateStarInfo调用计数器
     if (updateStarInfo && typeof updateStarInfo.callCount !== 'undefined') {
@@ -990,7 +1030,7 @@ function checkCollisions() {
                     // 碎片与恒星相撞，合并碎片
                     const fragmentBody = isFragment1 ? body1 : body2;
                     const starBody = isFragment1 ? body2 : body1;
-                    message = `${fragmentBody.name}被${starBody.name}吞噬`;
+                    message = `碎片${fragmentBody.name}撞击了${starBody.name}`;
                 } else {
                     message = `${body1.name}和${body2.name}相撞`;
                 }
@@ -1031,6 +1071,13 @@ function checkCollisions() {
                     // 碎片与恒星相撞，合并碎片
                     const fragmentBody = isFragment1 ? body1 : body2;
                     const starBody = isFragment1 ? body2 : body1;
+                    
+                    // 检查碎片是否处于无敌状态（创建后5刻内）
+                    const fragmentAge = time - (fragmentBody.creationTime || 0);
+                    if (fragmentAge < 5) {
+                        // 碎片处于无敌状态，跳过此次碰撞处理
+                        continue;
+                    }
                     
                     // 保存原始质量
                     const origStarMass = starBody.mass;
@@ -1099,6 +1146,20 @@ function checkCollisions() {
                     const coreMass = totalMass * 0.2;
                     const nebulaMass = nebulaWithCore.mass + totalMass * 0.8;
                     
+                    // 创建冲击波（恒星撞击星云核也产生冲击波）
+                    console.log('创建二次爆炸冲击波:', { coreBody: coreBody.name, nonCoreBody: nonCoreBody.name, totalMass, shockwavesCount: shockwaves.length });
+                    const shockwaveId = shockwaves.length;
+                    const shockwave = new Shockwave(
+                        shockwaveId,
+                        newX, newY, newZ,
+                        newVx, newVy, newVz,
+                        totalMass,
+                        coreBody.color,
+                        nonCoreBody.color
+                    );
+                    shockwaves.push(shockwave);
+                    console.log('冲击波已创建:', { shockwaveId, shockwavesCount: shockwaves.length });
+                    
                     // 更新星云核
                     coreBody.mass = coreMass;
                     coreBody.x = newX;
@@ -1110,7 +1171,7 @@ function checkCollisions() {
                     coreBody.color = getSpectralColor(coreMass);
                     coreBody.radius = Math.cbrt(coreMass) * 0.5;
                     
-                    // 更新星云
+                    // 更新星云（星云增大但不叠加）
                     nebulaWithCore.mass = nebulaMass;
                     nebulaWithCore.maxRadius = Math.cbrt(nebulaMass) * 15;
                     nebulaWithCore.targetRadius = nebulaWithCore.maxRadius;
@@ -1166,6 +1227,7 @@ function checkCollisions() {
                     const nebulaMass = totalMass * 0.8;
                     
                     // 创建冲击波
+                    console.log('创建初次爆炸冲击波:', { body1: body1.name, body2: body2.name, totalMass, shockwavesCount: shockwaves.length });
                     const shockwaveId = shockwaves.length;
                     const shockwave = new Shockwave(
                         shockwaveId,
@@ -1176,22 +1238,16 @@ function checkCollisions() {
                         body2.color
                     );
                     shockwaves.push(shockwave);
+                    console.log('冲击波已创建:', { shockwaveId, shockwavesCount: shockwaves.length });
                     
                     // 生成碎片：10-20个
                     const fragmentCount = Math.floor(Math.random() * 11) + 10;
                     const planetMass = 10; // 行星基准质量
                     
-                    // 初始化碎片计数器
-                    if (!fragmentCounter[body1.name]) fragmentCounter[body1.name] = 0;
-                    if (!fragmentCounter[body2.name]) fragmentCounter[body2.name] = 0;
-                    
                     for (let f = 0; f < fragmentCount; f++) {
-                        // 随机选择使用哪个恒星的名称作为前缀
-                        const starName = Math.random() < 0.5 ? body1.name : body2.name;
-                        
-                        // 增加该恒星的碎片计数
-                        fragmentCounter[starName]++;
-                        const fragName = `${starName}_${fragmentCounter[starName]}`;
+                        // 使用全局碎片计数器生成名称 f-1, f-2, ...
+                        fragmentCounter++;
+                        const fragName = `f-${fragmentCounter}`;
                         
                         // 碎片质量：0.1-5倍行星质量
                         const fragMass = (Math.random() * 4.9 + 0.1) * planetMass;
@@ -1226,23 +1282,35 @@ function checkCollisions() {
                             fragColor
                         );
                         fragment.isFragment = true; // 标记为碎片
+                        fragment.creationTime = time; // 记录创建时间，用于无敌状态
                         
                         bodies.push(fragment);
                         trails[fragName] = [];
                     }
                     
                     // 创建恒星核（20%质量）
-                    let coreName = greekLetters[nebulaIdCounter % greekLetters.length];
-                    let coreCounter = Math.floor(nebulaIdCounter / greekLetters.length) + 1;
-                    let testCoreName = coreName;
-                    if (coreCounter > 1) {
-                        testCoreName = coreName + coreCounter;
+                    // 按希腊字母顺序查找可用的名称
+                    let coreName = null;
+                    for (let letter of greekLetters) {
+                        if (!bodies.some(b => b.name === letter)) {
+                            coreName = letter;
+                            break;
+                        }
                     }
-                    while (bodies.some(b => b.name === testCoreName)) {
-                        coreCounter++;
-                        testCoreName = coreName + coreCounter;
+                    // 如果希腊字母都用完了，使用希腊字母加数字（但这是不太可能的情况）
+                    if (!coreName) {
+                        let counter = 1;
+                        while (!coreName) {
+                            for (let letter of greekLetters) {
+                                const testName = `${letter}${counter}`;
+                                if (!bodies.some(b => b.name === testName)) {
+                                    coreName = testName;
+                                    break;
+                                }
+                            }
+                            counter++;
+                        }
                     }
-                    coreName = testCoreName;
                     
                     const coreColor = getSpectralColor(coreMass);
                     const newCoreBody = new CelestialBody(
@@ -1299,22 +1367,28 @@ function checkCollisions() {
                     const newVy = (body1.vy * body1.mass + body2.vy * body2.mass) / totalMass;
                     const newVz = (body1.vz * body1.mass + body2.vz * body2.mass) / totalMass;
 
-                    // 创建新的标准天体
-                    let newName = '';
-                    if (body1.name.length === 1 && body2.name.length === 1) {
-                        newName = String.fromCharCode(body1.name.charCodeAt(0) + body2.name.charCodeAt(0));
-                    } else {
-                        newName = 'New';
+                    // 创建新的标准天体，使用希腊字母命名
+                    let newName = null;
+                    for (let letter of greekLetters) {
+                        if (!bodies.some(b => b.name === letter)) {
+                            newName = letter;
+                            break;
+                        }
                     }
-
-                    // 确保名称唯一
-                    let counter = 1;
-                    let testName = newName;
-                    while (bodies.some(b => b.name === testName)) {
-                        testName = newName + counter;
-                        counter++;
+                    // 如果希腊字母都用完了，使用希腊字母加数字
+                    if (!newName) {
+                        let counter = 1;
+                        while (!newName) {
+                            for (let letter of greekLetters) {
+                                const testName = `${letter}${counter}`;
+                                if (!bodies.some(b => b.name === testName)) {
+                                    newName = testName;
+                                    break;
+                                }
+                            }
+                            counter++;
+                        }
                     }
-                    newName = testName;
 
                     // 根据新质量计算恒星颜色（仅当合并后的天体质量足够大时视为恒星）
                     let newColor = body1.color;
@@ -1556,7 +1630,7 @@ function showTemperatureMessage() {
         threeFlyingStars: [
             `第${civilizationId}号文明在三颗飞星的永恒寒夜中毁灭了`,
             `第${civilizationId}号文明在永恒的寒夜中化为冰雕`,
-            `三颗飞星，第${civilizationId}号文明在无尽的寒冷中消亡`,
+            `三颗飞星升起，第${civilizationId}号文明在无尽的寒冷中消亡`,
             `第${civilizationId}号文明在宇宙的冰墓中沉睡了`
         ],
         allBelowHorizon: [
@@ -1582,8 +1656,7 @@ function showTemperatureMessage() {
         `第${civilizationId}号文明在恒星碰撞的璀璨光芒中化为宇宙尘埃`,
         `超新星爆发，第${civilizationId}号文明在亿万个太阳的光芒中消散`,
         `第${civilizationId}号文明在恒星相撞的冲击波中化为齑粉`,
-        `第${civilizationId}号文明在宇宙的焰火中迎来了终结`,
-        `第${civilizationId}号文明 被 超新星 炸死了`
+        `第${civilizationId}号文明在宇宙的焰火中迎来了终结`
     ];
 
     const fragmentImpactMessages = [
@@ -1790,7 +1863,7 @@ function calculatePlanetPTemperature() {
         const dz = planetP.z - shockwave.z;
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         
-        const heating = shockwave.getHeatingEffect(distance);
+        const heating = shockwave.getHeatingEffect(planetP, distance);
         shockwaveHeating += heating;
         if (heating > 0) hasActiveShockwave = true;
     }
@@ -1799,13 +1872,19 @@ function calculatePlanetPTemperature() {
         nebulaHeating += planetP.baseTemperature * 0.1;
     }
     
-    if (totalEnergy === 0 && nebulaHeating === 0 && shockwaveHeating === 0) return { temp: '--', isExplosion: false };
+    // 添加行星P自身的冲击波温度
+    let planetPShockwaveTemp = 0;
+    if (typeof planetP.shockwaveTemp !== 'undefined') {
+        planetPShockwaveTemp = planetP.shockwaveTemp;
+    }
     
-    const temperatureK = 150 * Math.pow(totalEnergy + (nebulaHeating + shockwaveHeating) * 0.01, 0.25);
+    if (totalEnergy === 0 && nebulaHeating === 0 && shockwaveHeating === 0 && planetPShockwaveTemp === 0) return { temp: '--', isExplosion: false };
+    
+    const temperatureK = 150 * Math.pow(totalEnergy + (nebulaHeating + shockwaveHeating + planetPShockwaveTemp) * 0.01, 0.25);
     const temperatureC = temperatureK - 273.15;
     
-    // 判断是否主要由冲击波导致高温
-    const isExplosion = hasActiveShockwave && shockwaveHeating * 0.01 > totalEnergy * 0.5;
+    // 判断是否主要由冲击波导致高温：只要有冲击波温度就判定为爆炸
+    const isExplosion = planetPShockwaveTemp > 0;
     
     return { temp: temperatureC.toFixed(2), isExplosion: isExplosion };
 }
@@ -1972,7 +2051,7 @@ function updateBodiesPosition() {
             }
             
             // 冲击波的升温效果
-            const heating = shockwave.getHeatingEffect(distance);
+            const heating = shockwave.getHeatingEffect(bodies[i], distance);
             shockwaveHeating += heating;
         }
         
@@ -1993,7 +2072,39 @@ function updateBodiesPosition() {
         if (typeof bodies[i].baseTemperature === 'undefined') {
             bodies[i].baseTemperature = 0;
         }
-        bodies[i].baseTemperature += (totalHeating + shockwaveHeating) * dt;
+        if (typeof bodies[i].shockwaveTemp === 'undefined') {
+            bodies[i].shockwaveTemp = 0;
+        }
+        if (typeof bodies[i].shockwavePeak === 'undefined') {
+            bodies[i].shockwavePeak = 0;
+        }
+        if (typeof bodies[i].shockwaveCooling === 'undefined') {
+            bodies[i].shockwaveCooling = false;
+        }
+        
+        // 星云升温永久叠加
+        bodies[i].baseTemperature += totalHeating * dt;
+        
+        // 冲击波升温：快速升到峰值，然后缓缓降温
+        if (shockwaveHeating > 0) {
+            // 有冲击波加热，更新峰值
+            bodies[i].shockwavePeak = Math.max(bodies[i].shockwavePeak, shockwaveHeating);
+            bodies[i].shockwaveTemp = bodies[i].shockwavePeak;
+            bodies[i].shockwaveCooling = false;
+        } else {
+            // 没有冲击波加热，开始冷却
+            if (bodies[i].shockwaveTemp > 0) {
+                bodies[i].shockwaveCooling = true;
+                // 冷却速率：每刻减少峰值的1%
+                bodies[i].shockwaveTemp *= 0.99;
+                // 温度接近0时重置
+                if (bodies[i].shockwaveTemp < 1) {
+                    bodies[i].shockwaveTemp = 0;
+                    bodies[i].shockwavePeak = 0;
+                    bodies[i].shockwaveCooling = false;
+                }
+            }
+        }
 
         // 更新速度 (F = ma => a = F/m)
         bodies[i].vx += fx / bodies[i].mass * dt;
@@ -2456,28 +2567,31 @@ function drawShockwaves() {
             r2 = g2 = b2 = 200;
         }
         
-        // 冲击波透明度随时间衰减
-        const alphaFactor = 1 - progress * 0.9;
+        // 混合颜色
+        const mixedR = Math.round((r1 + r2) / 2);
+        const mixedG = Math.round((g1 + g2) / 2);
+        const mixedB = Math.round((b1 + b2) / 2);
         
-        // 绘制冲击波前沿（一个明亮的薄壳）
-        const shellThickness = Math.max(3, radius * 0.05);
-        const outerRadius = radius;
-        const innerRadius = Math.max(0, radius - shellThickness);
+        // 冲击波整体透明度随时间逐渐增加（变得更透明）
+        // 开始时较不透明（0.6），结束时几乎完全透明（0.05）
+        const baseAlpha = 0.6 - progress * 0.55;
         
-        // 外层冲击波（明亮前沿）
+        // 绘制半透明球体，从边缘到中心越来越透明
         const shockwaveGradient = ctx.createRadialGradient(
-            projected.x, projected.y, innerRadius,
-            projected.x, projected.y, outerRadius
+            projected.x, projected.y, 0,
+            projected.x, projected.y, radius
         );
-        shockwaveGradient.addColorStop(0, `rgba(${r2}, ${g2}, ${b2}, 0)`);
-        shockwaveGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.8 * alphaFactor})`);
-        shockwaveGradient.addColorStop(0.7, `rgba(${Math.min(255, r1 + 50)}, ${Math.min(255, g1 + 50)}, ${Math.min(255, b1 + 50)}, ${0.5 * alphaFactor})`);
-        shockwaveGradient.addColorStop(1, `rgba(${r1}, ${g1}, ${b1}, 0)`);
+        
+        // 中心：完全透明
+        shockwaveGradient.addColorStop(0, `rgba(${mixedR}, ${mixedG}, ${mixedB}, 0)`);
+        // 中间位置：中等透明度
+        shockwaveGradient.addColorStop(0.5, `rgba(${mixedR}, ${mixedG}, ${mixedB}, ${baseAlpha * 0.5})`);
+        // 边缘：最高透明度
+        shockwaveGradient.addColorStop(1, `rgba(${mixedR}, ${mixedG}, ${mixedB}, ${baseAlpha})`);
         
         ctx.fillStyle = shockwaveGradient;
         ctx.beginPath();
-        ctx.arc(projected.x, projected.y, outerRadius, 0, Math.PI * 2);
-        ctx.arc(projected.x, projected.y, innerRadius, 0, Math.PI * 2, true);
+        ctx.arc(projected.x, projected.y, radius, 0, Math.PI * 2);
         ctx.fill();
     }
 }
@@ -5741,8 +5855,32 @@ document.getElementById('exportBtn').addEventListener('click', function () {
             vx: body.vx,
             vy: body.vy,
             vz: body.vz,
-            color: body.color
+            color: body.color,
+            isFragment: body.isFragment || false,
+            creationTime: body.creationTime
         })),
+        nebulas: nebulas.map(nebula => {
+            const coreBodyName = nebula.coreBody ? nebula.coreBody.name : null;
+            if (!coreBodyName) {
+                console.warn('导出时星云核天体名称为空:', nebula);
+            }
+            return {
+                id: nebula.id,
+                x: nebula.x,
+                y: nebula.y,
+                z: nebula.z,
+                mass: nebula.mass,
+                color1: nebula.color1,
+                color2: nebula.color2,
+                coreBodyName: coreBodyName,
+                maxRadius: nebula.maxRadius,
+                currentRadius: nebula.currentRadius,
+                temperature: nebula.temperature,
+                isStable: nebula.isStable,
+                randomSeed: nebula.randomSeed
+            };
+        }),
+        nebulaIdCounter: nebulaIdCounter,
         time: time,
         scale: scale,
         offsetX: offsetX,
@@ -5786,7 +5924,7 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
             // 恢复天体参数
             if (params.bodies && Array.isArray(params.bodies)) {
                 bodies = params.bodies.map(bodyData => {
-                    return new CelestialBody(
+                    const body = new CelestialBody(
                         bodyData.name,
                         bodyData.mass,
                         bodyData.x,
@@ -5797,6 +5935,15 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
                         bodyData.vz,
                         bodyData.color || '#ffffff' // 添加默认颜色以防未定义
                     );
+                    // 恢复碎片标记
+                    if (bodyData.isFragment) {
+                        body.isFragment = true;
+                    }
+                    // 恢复碎片创建时间
+                    if (bodyData.creationTime !== undefined) {
+                        body.creationTime = bodyData.creationTime;
+                    }
+                    return body;
                 });
 
                 // 初始化轨迹数组
@@ -5808,6 +5955,41 @@ document.getElementById('fileInput').addEventListener('change', function (e) {
 
                 // 更新UI（如果天体数量足够）
                 updateUI();
+            }
+
+            // 恢复星云参数
+            nebulas = [];
+            if (params.nebulas && Array.isArray(params.nebulas)) {
+                for (const nebulaData of params.nebulas) {
+                    // 先找到对应的星云核天体
+                    const coreBody = bodies.find(b => b.name === nebulaData.coreBodyName);
+                    if (coreBody) {
+                        const nebula = new Nebula(
+                            nebulaData.id,
+                            nebulaData.x,
+                            nebulaData.y,
+                            nebulaData.z,
+                            nebulaData.mass,
+                            nebulaData.color1,
+                            nebulaData.color2,
+                            coreBody
+                        );
+                        // 恢复额外的状态
+                        if (nebulaData.maxRadius !== undefined) nebula.maxRadius = nebulaData.maxRadius;
+                        if (nebulaData.currentRadius !== undefined) nebula.currentRadius = nebulaData.currentRadius;
+                        if (nebulaData.temperature !== undefined) nebula.temperature = nebulaData.temperature;
+                        if (nebulaData.isStable !== undefined) nebula.isStable = nebulaData.isStable;
+                        if (nebulaData.randomSeed !== undefined) nebula.randomSeed = nebulaData.randomSeed;
+                        nebulas.push(nebula);
+                    } else {
+                        console.warn('导入时找不到星云核天体:', nebulaData.coreBodyName, '可用的天体:', bodies.map(b => b.name));
+                    }
+                }
+            }
+
+            // 恢复星云计数器
+            if (params.nebulaIdCounter !== undefined) {
+                nebulaIdCounter = params.nebulaIdCounter;
             }
 
             // 恢复视图参数
