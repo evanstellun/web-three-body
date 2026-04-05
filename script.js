@@ -221,6 +221,7 @@ let civilizationId = 1;
 let civilizationStartTime = 0;
 let lastCivilizationRecorded = false;
 let isDestructionByExplosion = false; // 跟踪是否由爆炸导致灭亡
+let currentDestructionType = null; // 当前灭亡方式: 'explosion', 'high_temp', 'low_temp', 'fragment_impact', 'star_eaten', 'observer_closed'
 
 // 天体轨迹历史记录
 const trailLength = mobileConfig.trailLength;
@@ -354,7 +355,7 @@ const quotes = [
     "大部分人的人生都是偶然，甚至整个人类世界都是偶然。",
     "在巨变的世界中，不变的只有时间流逝的速度。",
     "活着本身就很美妙，如果连这道理都不懂，怎么去探索更深的东西呢？",
-    "生活需要平滑，但也需要一个方向，不能总是回到起点。", ,
+    "生活需要平滑，但也需要一个方向，不能总是回到起点。",
     "我正变成死亡，世界的毁灭者。",
     "这一刻，沧海桑田。",
     "一切都将逝去，只有死神永生。",
@@ -470,41 +471,57 @@ let nebulas = [];
 let nebulaIdCounter = 0;
 const greekLetters = ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω'];
 
-// 爆炸相关
-let explosions = [];
+// 冲击波相关
+let shockwaves = [];
 let fragmentCounter = {};
 
-class Explosion {
-    constructor(id, x, y, z, power, color1, color2) {
+class Shockwave {
+    constructor(id, x, y, z, vx, vy, vz, power, color1, color2) {
         this.id = id;
         this.x = x;
         this.y = y;
         this.z = z;
+        this.vx = vx;  // 冲击波也有速度，跟随爆炸中心移动
+        this.vy = vy;
+        this.vz = vz;
         this.power = power;
         this.color1 = color1;
         this.color2 = color2;
         this.age = 0;
-        this.maxAge = 100;
         this.radius = 0;
-        this.maxRadius = Math.cbrt(power) * 10;
+        this.shockwaveSpeed = 50;  // 冲击波扩散速度非常快
+        this.maxAge = 100;  // 冲击波存在的时间
         this.isActive = true;
+        this.hasAffected = new Set();  // 记录已经影响过的天体
     }
     
     update(dt) {
+        // 冲击波跟随爆炸中心移动
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.z += this.vz * dt;
+        
+        // 冲击波以恒定速度快速向外扩散
+        this.radius += this.shockwaveSpeed * dt;
         this.age += dt;
+        
         if (this.age >= this.maxAge) {
             this.isActive = false;
-            return;
         }
-        
-        const progress = this.age / this.maxAge;
-        this.radius = this.maxRadius * (1 - Math.pow(1 - progress, 2));
     }
     
+    // 获取冲击波对天体的推力（与距离平方成反比）
+    getPushEffect(distance) {
+        if (distance > this.radius || distance < this.radius - this.shockwaveSpeed * 2) {
+            return 0;  // 只在冲击波前沿附近产生推力
+        }
+        const basePush = this.power * 1000;
+        return basePush / (distance * distance + 1);
+    }
+    
+    // 获取冲击波的升温效果（与距离平方成反比）
     getHeatingEffect(distance) {
-        if (distance > this.maxRadius) return 0;
-        const effectiveRadius = this.radius * 3;
-        if (distance > effectiveRadius) return 0;
+        if (distance > this.radius) return 0;
         const baseHeat = this.power * 100000;
         return baseHeat / (distance * distance + 1);
     }
@@ -607,11 +624,6 @@ function updateBodies() {
         if (i < 3) { // 恒星
             bodies[i].color = getSpectralColor(bodies[i].mass);
         }
-        
-        // 根据质量更新恒星颜色（仅对恒星）
-        if (i < 3) { // 恒星
-            bodies[i].color = getSpectralColor(bodies[i].mass);
-        }
     }
 }
 
@@ -634,74 +646,14 @@ function getNextCivilizationId() {
     return 1;
 }
 
-// 记录文明历史
-// 显示文明发展状态
-function showCivilizationHistory() {
-    const modal = document.getElementById('civilization-history-modal');
-    const tableBody = document.getElementById('civilization-history-body');
 
-    // 清空表格
-    tableBody.innerHTML = '';
-
-    try {
-        const data = localStorage.getItem('civilizationHistory');
-        if (data) {
-            const history = JSON.parse(data);
-            // 过滤掉currentId记录，只显示文明记录
-            const civilizations = history.filter(entry => entry.id !== undefined && entry.destruction !== undefined);
-
-            civilizations.forEach(entry => {
-                // 根据灭亡消息内容判断是高温还是低温毁灭
-                let destructionType = entry.destruction;
-                if (entry.destruction.includes("爆炸") || 
-                    entry.destruction.includes("超新星") ||
-                    entry.destruction.includes("化为灰烬")) {
-                    destructionType = "被恒星爆炸毁灭";
-                } else if (entry.destruction.includes("烈焰") || 
-                    entry.destruction.includes("高温") || 
-                    entry.destruction.includes("巨日") ||
-                    entry.destruction.includes("双日凌空") ||
-                    entry.destruction.includes("飞星不动")) {
-                    destructionType = "在高温下毁灭";
-                } else if (entry.destruction.includes("凛冬") || 
-                          entry.destruction.includes("严寒") || 
-                          entry.destruction.includes("太阳落下") ||
-                          entry.destruction.includes("雪花") ||
-                          entry.destruction.includes("夜空升起") ||
-                          entry.destruction.includes("氮氧凝固")) {
-                    destructionType = "在低温下毁灭";
-                } else if (entry.destruction.includes("撞击")) {
-                    destructionType = "被碎片撞击毁灭";
-                }
-
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${entry.id}号文明</td>
-                    <td>${destructionType}</td>
-                    <td>${entry.existenceTime}</td>
-                    <td>${entry.era || '--'}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-        }
-    } catch (e) {
-        console.error("Error loading civilization history:", e);
-    }
-
-    modal.style.display = 'block';
-
-    // 自动滚动到最新记录
-    const modalBody = modal.querySelector('.modal-body');
-    setTimeout(() => {
-        modalBody.scrollTop = modalBody.scrollHeight;
-    }, 100);
-}
 // 随机天体
 function randomizeBodies() {
     // 如果上一个文明还没有毁灭，记录它繁荣昌盛
     if (!lastCivilizationRecorded && time > 0) {
         const existenceTime = time - civilizationStartTime;
         const era = getCivilizationEra(existenceTime);
+        currentDestructionType = 'observer_closed';
         recordCivilization("被观察者关闭", existenceTime.toFixed(2), era);
     }
 
@@ -723,8 +675,8 @@ function randomizeBodies() {
     nebulas = [];
     nebulaIdCounter = 0;
     
-    // 重置爆炸和碎片
-    explosions = [];
+    // 重置冲击波和碎片
+    shockwaves = [];
     fragmentCounter = {};
     
     // 重置updateStarInfo调用计数器
@@ -852,8 +804,8 @@ function resetSimulation() {
     nebulas = [];
     nebulaIdCounter = 0;
     
-    // 重置爆炸和碎片
-    explosions = [];
+    // 重置冲击波和碎片
+    shockwaves = [];
     fragmentCounter = {};
     
     // 重置updateStarInfo调用计数器
@@ -949,8 +901,10 @@ function checkCollisions() {
                     // 碎片撞击行星P
                     const fragmentBody = body1.name === 'p' ? body2 : body1;
                     message = `被${fragmentBody.name}撞击毁灭`;
+                    currentDestructionType = 'fragment_impact';
                 } else if (hasPlanetP && ((body1.name === 'p' && body2.name !== 'p') || (body2.name === 'p' && body1.name !== 'p'))) {
                     message = "行星P被恒星吞噬了";
+                    currentDestructionType = 'star_eaten';
                 } else if ((isFragment1 || isFragment2) && !isPlanetPCollision) {
                     // 碎片与恒星相撞，合并碎片
                     const fragmentBody = isFragment1 ? body1 : body2;
@@ -985,6 +939,7 @@ function checkCollisions() {
                         recordCivilization(message, existenceTime.toFixed(2), era);
                     } else {
                         // 对于星际探索文明，记录其进入星际时代但不记录毁灭
+                        currentDestructionType = 'interstellar';
                         recordCivilization("飞向了新的家园", "--", era);
                     }
                     lastCivilizationRecorded = true;
@@ -1129,16 +1084,17 @@ function checkCollisions() {
                     const coreMass = totalMass * 0.2;
                     const nebulaMass = totalMass * 0.8;
                     
-                    // 创建爆炸
-                    const explosionId = explosions.length;
-                    const explosion = new Explosion(
-                        explosionId,
+                    // 创建冲击波
+                    const shockwaveId = shockwaves.length;
+                    const shockwave = new Shockwave(
+                        shockwaveId,
                         newX, newY, newZ,
+                        newVx, newVy, newVz,  // 冲击波也有速度，跟随爆炸中心移动
                         totalMass,
                         body1.color,
                         body2.color
                     );
-                    explosions.push(explosion);
+                    shockwaves.push(shockwave);
                     
                     // 生成碎片：10-20个
                     const fragmentCount = Math.floor(Math.random() * 11) + 10;
@@ -1432,11 +1388,9 @@ function showPlanetDestroyedMessage() {
 }
 
 // 显示文明毁灭信息
-function showTemperatureMessage(message) {
-    // 如果消息与上次相同或文明已经记录，则不重复显示
-    if (message === lastTemperatureMessage || lastCivilizationRecorded) return;
-
-    lastTemperatureMessage = message;
+function showTemperatureMessage() {
+    // 如果文明已经记录或没有灭亡方式，则不重复显示
+    if (lastCivilizationRecorded || !currentDestructionType) return;
 
     // 获取所有恒星信息
     const celestialBodies = bodies.filter(body => body.name !== 'p');
@@ -1458,17 +1412,15 @@ function showTemperatureMessage(message) {
             distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
             
             // 计算高度角（适用于所有视角模式）
-            // 这里我们使用行星P作为参考点，计算恒星相对于行星P表面的高度角
-            // 假设行星P的表面是一个平面，Y轴为垂直方向
-            const observerY = dy; // 恒星相对于行星P的Y轴位置
-            const observerHorizontalDistance = Math.sqrt(dx * dx + dz * dz); // 水平距离
+            const observerY = dy;
+            const observerHorizontalDistance = Math.sqrt(dx * dx + dz * dz);
             
             if (observerHorizontalDistance > 0) {
                 heightAngle = Math.atan(observerY / observerHorizontalDistance) * (180 / Math.PI);
             } else if (observerY > 0) {
-                heightAngle = 90; // 正上方
+                heightAngle = 90;
             } else if (observerY < 0) {
-                heightAngle = -90; // 正下方
+                heightAngle = -90;
             }
         }
         
@@ -1491,43 +1443,94 @@ function showTemperatureMessage(message) {
     // 定义不同恒星状态下的多种毁灭描述
     const highTemperatureMessages = {
         threeStars: [
-            `第${civilizationId}号文明在三日凌空的烈焰中毁灭了`
+            `第${civilizationId}号文明在三日凌空的烈焰中毁灭了`,
+            `第${civilizationId}号文明因三日凌空的高温而灭亡`,
+            `第${civilizationId}号文明在三颗太阳的炙烤下化为灰烬`,
+            `三日凌空，第${civilizationId}号文明在烈焰中消散于无形`,
+            `第${civilizationId}号文明在三个太阳的光芒中燃烧殆尽`,
+            `三颗太阳在地平线上升起，第${civilizationId}号文明的一切都在高温中升华`
         ],
         twoStars: [
-            `第${civilizationId}号文明在双日凌空的烈焰中毁灭了`
+            `第${civilizationId}号文明在双日凌空的烈焰中毁灭了`,
+            `第${civilizationId}号文明因双日凌空的高温而灭亡`,
+            `第${civilizationId}号文明在两轮太阳的炙烤下消亡`,
+            `第${civilizationId}号文明在双日的烈焰中消失了`
         ],
         oneStar: [
-            `第${civilizationId}号文明在一轮巨日下毁灭了`
+            `第${civilizationId}号文明在一轮巨日下毁灭了`,
+            `行星从恒星附近掠过，烈焰抹去了第${civilizationId}号文明的一切痕迹`,
+            `第${civilizationId}号文明在一颗巨星的炙烤下化为灰烬`,
+            `飞星不动，第${civilizationId}号文明在悬停的太阳下消亡`,
+            `第${civilizationId}号文明在巨日的光芒中燃烧殆尽`
         ],
         default: [
-            `第${civilizationId}号文明在阳光的烈焰下毁灭了`
+            `第${civilizationId}号文明在阳光的烈焰下毁灭了`,
+            `第${civilizationId}号文明在恒乱纪元的高温中消亡`,
+            `第${civilizationId}号文明在太阳的炙烤下消失了`,
+            `第${civilizationId}号文明在烈焰中化为灰烬`
         ]
     };
 
     const lowTemperatureMessages = {
         threeFlyingStars: [
-            `第${civilizationId}号文明在三颗飞星的永恒寒夜中毁灭了`
+            `第${civilizationId}号文明在三颗飞星的永恒寒夜中毁灭了`,
+            `第${civilizationId}号文明在永恒的寒夜中化为冰雕`,
+            `三颗飞星，第${civilizationId}号文明在无尽的寒冷中消亡`,
+            `第${civilizationId}号文明在宇宙的冰墓中沉睡了`
         ],
         allBelowHorizon: [
-            `第${civilizationId}号文明的太阳落下后再也没有升起`
+            `第${civilizationId}号文明的太阳落下后再也没有升起`,
+            `第${civilizationId}号文明在永夜的黑暗中被冻结`,
+            `第${civilizationId}号文明的世界陷入了永恒的黑暗与寒冷`,
+            `第${civilizationId}号文明在漫长的寒夜中消亡了`
         ],
         default: [
-            `第${civilizationId}号文明被冻结在了无尽的凛冬中`
+            `第${civilizationId}号文明被冻结在了无尽的凛冬中`,
+            `第${civilizationId}号文明在恒乱纪元的严寒中消亡`,
+            `第${civilizationId}号文明被冰封在了时间的长河中`,
+            `第${civilizationId}号文明在寒冷中沉睡，再也没有醒来`,
+            `第${civilizationId}号文明被冻结成了永恒的雕塑`
         ]
     };
 
-    // 根据恒星状态选择合适的消息集合并随机选择一条消息
+    const explosionMessages = [
+        `第${civilizationId}号文明在恒星爆炸的烈焰中化为了灰烬`,
+        `第${civilizationId}号文明被超新星爆发的光芒吞没了`,
+        `第${civilizationId}号文明在恒星相撞引发的爆炸中毁灭了`,
+        `第${civilizationId}号文明在超新星爆炸中消失了，就像从未存在过一样......`,
+        `第${civilizationId}号文明在恒星碰撞的璀璨光芒中化为宇宙尘埃`,
+        `超新星爆发，第${civilizationId}号文明在亿万个太阳的光芒中消散`,
+        `第${civilizationId}号文明在恒星相撞的冲击波中化为齑粉`,
+        `第${civilizationId}号文明在宇宙的焰火中迎来了终结`,
+        `第${civilizationId}号文明 被 超新星 炸死了`
+    ];
+
+    const fragmentImpactMessages = [
+        `第${civilizationId}号文明被飞来的碎片撞击毁灭了`,
+        `第${civilizationId}号文明在天体碎片的撞击下化为了灰烬`,
+        `第${civilizationId}号文明被宇宙碎片终结了`,
+        `第${civilizationId}号文明在天外来客的撞击下化为齑粉`,
+        `第${civilizationId}号文明被飞来的巨石终结了`,
+        `第${civilizationId}号文明在宇宙碎片的撞击下烟消云散`,
+        `第${civilizationId}号文明被一颗流浪的天体碎片终结了`
+    ];
+
+    const starEatenMessages = [
+        `第${civilizationId}号文明的行星被恒星吞噬了`,
+        `第${civilizationId}号文明的世界坠入了太阳的火海`,
+        `第${civilizationId}号文明在恒星的怀抱中化为灰烬`,
+        `第${civilizationId}号文明的行星被恒星的引力拉入了火海`
+    ];
+
+    const observerClosedMessages = [
+        `由于没有留下任何痕迹与记载，无人知晓第${civilizationId}号文明的结局`
+    ];
+
+    // 根据灭亡方式选择合适的消息集合并随机选择一条消息
     let finalMessage;
-    if (message.includes("在恒星爆炸的烈焰中化为灰烬")) {
-        // 爆炸导致灭亡的情况
-        const explosionMessages = [
-            `第${civilizationId}号文明在恒星爆炸的烈焰中化为灰烬了`,
-            `第${civilizationId}号文明被超新星爆发的光芒吞没了`,
-            `第${civilizationId}号文明在恒星相撞的灾难中毁灭了`
-        ];
+    if (currentDestructionType === 'explosion') {
         finalMessage = explosionMessages[Math.floor(Math.random() * explosionMessages.length)];
-    } else if (message.includes("在阳光的烈焰下毁灭了")) {
-        // 高温情况
+    } else if (currentDestructionType === 'high_temp') {
         let messageList;
         if (risingStarCount === 3) {
             messageList = highTemperatureMessages.threeStars;
@@ -1538,10 +1541,8 @@ function showTemperatureMessage(message) {
         } else {
             messageList = highTemperatureMessages.default;
         }
-        // 随机选择一条消息
         finalMessage = messageList[Math.floor(Math.random() * messageList.length)];
-    } else if (message.includes("在无尽的凛冬下毁灭了")) {
-        // 低温情况
+    } else if (currentDestructionType === 'low_temp') {
         let messageList;
         if (flyingStarCount === 3) {
             messageList = lowTemperatureMessages.threeFlyingStars;
@@ -1550,11 +1551,15 @@ function showTemperatureMessage(message) {
         } else {
             messageList = lowTemperatureMessages.default;
         }
-        // 随机选择一条消息
         finalMessage = messageList[Math.floor(Math.random() * messageList.length)];
+    } else if (currentDestructionType === 'fragment_impact') {
+        finalMessage = fragmentImpactMessages[Math.floor(Math.random() * fragmentImpactMessages.length)];
+    } else if (currentDestructionType === 'star_eaten') {
+        finalMessage = starEatenMessages[Math.floor(Math.random() * starEatenMessages.length)];
+    } else if (currentDestructionType === 'observer_closed') {
+        finalMessage = observerClosedMessages[Math.floor(Math.random() * observerClosedMessages.length)];
     } else {
-        // 其他情况，使用原始消息
-        finalMessage = `第${civilizationId}号文明${message}`;
+        finalMessage = `第${civilizationId}号文明灭亡了`;
     }
 
     // 添加文明所处的时代信息
@@ -1568,7 +1573,7 @@ function showTemperatureMessage(message) {
     temperatureMessage.style.display = 'block';
 
     // 记录文明毁灭 - 但需要确保文明存在了一定时间才记录
-    if (!lastCivilizationRecorded && existenceTime > 0.1) { // 至少存在0.1个时间单位才记录
+    if (!lastCivilizationRecorded && existenceTime > 0.1) {
         recordCivilization(finalMessage, existenceTime.toFixed(2), era);
         lastCivilizationRecorded = true;
     }
@@ -1585,10 +1590,11 @@ function recordCivilization(destructionMethod, existenceTime, era) {
             history = JSON.parse(data);
         }
 
-        // 添加新的文明记录
+        // 添加新的文明记录 - 同时保存灭亡消息和灭亡类型
         const record = {
             id: civilizationId,
             destruction: destructionMethod,
+            destructionType: currentDestructionType,
             existenceTime: existenceTime,
             era: era
         };
@@ -1692,33 +1698,33 @@ function calculatePlanetPTemperature() {
         }
     }
     
-    // 添加爆炸的升温效果
-    let explosionHeating = 0;
-    let hasActiveExplosion = false;
-    for (const explosion of explosions) {
-        if (!explosion.isActive) continue;
+    // 添加冲击波的升温效果
+    let shockwaveHeating = 0;
+    let hasActiveShockwave = false;
+    for (const shockwave of shockwaves) {
+        if (!shockwave.isActive) continue;
         
-        const dx = planetP.x - explosion.x;
-        const dy = planetP.y - explosion.y;
-        const dz = planetP.z - explosion.z;
+        const dx = planetP.x - shockwave.x;
+        const dy = planetP.y - shockwave.y;
+        const dz = planetP.z - shockwave.z;
         const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
         
-        const heating = explosion.getHeatingEffect(distance);
-        explosionHeating += heating;
-        if (heating > 0) hasActiveExplosion = true;
+        const heating = shockwave.getHeatingEffect(distance);
+        shockwaveHeating += heating;
+        if (heating > 0) hasActiveShockwave = true;
     }
     
     if (typeof planetP.baseTemperature !== 'undefined') {
         nebulaHeating += planetP.baseTemperature * 0.1;
     }
     
-    if (totalEnergy === 0 && nebulaHeating === 0 && explosionHeating === 0) return { temp: '--', isExplosion: false };
+    if (totalEnergy === 0 && nebulaHeating === 0 && shockwaveHeating === 0) return { temp: '--', isExplosion: false };
     
-    const temperatureK = 150 * Math.pow(totalEnergy + (nebulaHeating + explosionHeating) * 0.01, 0.25);
+    const temperatureK = 150 * Math.pow(totalEnergy + (nebulaHeating + shockwaveHeating) * 0.01, 0.25);
     const temperatureC = temperatureK - 273.15;
     
-    // 判断是否主要由爆炸导致高温
-    const isExplosion = hasActiveExplosion && explosionHeating * 0.01 > totalEnergy * 0.5;
+    // 判断是否主要由冲击波导致高温
+    const isExplosion = hasActiveShockwave && shockwaveHeating * 0.01 > totalEnergy * 0.5;
     
     return { temp: temperatureC.toFixed(2), isExplosion: isExplosion };
 }
@@ -1813,13 +1819,13 @@ function updateBodiesPosition() {
         nebula.update(dt);
     }
     
-    // 更新所有爆炸
-    for (let explosion of explosions) {
-        explosion.update(dt);
+    // 更新所有冲击波
+    for (let shockwave of shockwaves) {
+        shockwave.update(dt);
     }
     
-    // 清理过期的爆炸
-    explosions = explosions.filter(explosion => explosion.isActive);
+    // 清理过期的冲击波
+    shockwaves = shockwaves.filter(shockwave => shockwave.isActive);
     
     // 计算并应用引力
     for (let i = 0; i < bodies.length; i++) {
@@ -1853,6 +1859,42 @@ function updateBodiesPosition() {
             }
         }
         
+        // 应用冲击波的推力和升温效果
+        let shockwavePushX = 0, shockwavePushY = 0, shockwavePushZ = 0;
+        let shockwaveHeating = 0;
+        
+        for (let shockwave of shockwaves) {
+            const dx = bodies[i].x - shockwave.x;
+            const dy = bodies[i].y - shockwave.y;
+            const dz = bodies[i].z - shockwave.z;
+            const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            
+            // 检查这个天体是否已经被这个冲击波影响过
+            const bodyKey = bodies[i].name;
+            if (!shockwave.hasAffected.has(bodyKey)) {
+                const push = shockwave.getPushEffect(distance);
+                if (push > 0) {
+                    // 计算向外的推力方向
+                    const dirX = dx / (distance + 0.001);
+                    const dirY = dy / (distance + 0.001);
+                    const dirZ = dz / (distance + 0.001);
+                    
+                    // 推力小于冲击波速度
+                    const pushMagnitude = Math.min(push, shockwave.shockwaveSpeed * 0.5);
+                    shockwavePushX += dirX * pushMagnitude;
+                    shockwavePushY += dirY * pushMagnitude;
+                    shockwavePushZ += dirZ * pushMagnitude;
+                    
+                    // 标记这个天体已经被这个冲击波影响过
+                    shockwave.hasAffected.add(bodyKey);
+                }
+            }
+            
+            // 冲击波的升温效果
+            const heating = shockwave.getHeatingEffect(distance);
+            shockwaveHeating += heating;
+        }
+        
         // 应用减速效果
         if (totalDrag > 0) {
             const dragFactor = Math.max(0, 1 - totalDrag * dt);
@@ -1861,11 +1903,16 @@ function updateBodiesPosition() {
             bodies[i].vz *= dragFactor;
         }
         
+        // 应用冲击波推力
+        bodies[i].vx += shockwavePushX * dt;
+        bodies[i].vy += shockwavePushY * dt;
+        bodies[i].vz += shockwavePushZ * dt;
+        
         // 保存基础温度用于升温效果
         if (typeof bodies[i].baseTemperature === 'undefined') {
             bodies[i].baseTemperature = 0;
         }
-        bodies[i].baseTemperature += totalHeating * dt;
+        bodies[i].baseTemperature += (totalHeating + shockwaveHeating) * dt;
 
         // 更新速度 (F = ma => a = F/m)
         bodies[i].vx += fx / bodies[i].mass * dt;
@@ -1906,9 +1953,9 @@ function updateBodiesPosition() {
     // 根据温度更新行星P的颜色
     const planetP = bodies.find(body => body.name === 'p');
     if (planetP) {
-        const temperature = calculatePlanetPTemperature();
-        if (temperature !== '--') {
-            const temp = parseFloat(temperature);
+        const tempResult = calculatePlanetPTemperature();
+        if (tempResult.temp !== '--') {
+            const temp = parseFloat(tempResult.temp);
             planetP.color = getPlanetPColor(temp);
         }
     }
@@ -2159,8 +2206,30 @@ function drawTrails() {
             const age = currentTime - point.time;
             const alpha = Math.max(0, 1 - age / fadeDuration);
 
-            // 设置轨迹颜色和透明度
-            ctx.strokeStyle = body.color.replace(')', `, ${alpha})`).replace('rgb', 'rgba');
+            // 设置轨迹颜色和透明度 - 支持多种颜色格式
+            let strokeColor;
+            if (body.color.startsWith('#')) {
+                // 十六进制颜色格式
+                let r, g, b;
+                const hex = body.color.slice(1);
+                if (hex.length === 3) {
+                    r = parseInt(hex[0] + hex[0], 16);
+                    g = parseInt(hex[1] + hex[1], 16);
+                    b = parseInt(hex[2] + hex[2], 16);
+                } else {
+                    r = parseInt(hex.slice(0, 2), 16);
+                    g = parseInt(hex.slice(2, 4), 16);
+                    b = parseInt(hex.slice(4, 6), 16);
+                }
+                strokeColor = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            } else if (body.color.startsWith('rgb(')) {
+                // RGB颜色格式
+                strokeColor = body.color.replace(')', `, ${alpha})`).replace('rgb', 'rgba');
+            } else {
+                // 其他格式，直接使用
+                strokeColor = body.color;
+            }
+            ctx.strokeStyle = strokeColor;
 
             if (i === 0) {
                 ctx.moveTo(projected.x, projected.y);
@@ -2258,23 +2327,23 @@ function drawNebulas() {
 }
 
 // 绘制爆炸
-function drawExplosions() {
-    for (let explosion of explosions) {
-        if (!explosion.isActive) continue;
+function drawShockwaves() {
+    for (let shockwave of shockwaves) {
+        if (!shockwave.isActive) continue;
         
-        const projected = project3D(explosion.x, explosion.y, explosion.z);
-        const radius = explosion.radius * projected.sizeFactor * scale;
-        const progress = explosion.age / explosion.maxAge;
+        const projected = project3D(shockwave.x, shockwave.y, shockwave.z);
+        const radius = shockwave.radius * projected.sizeFactor * scale;
+        const progress = shockwave.age / shockwave.maxAge;
         
         // 解析颜色1
         let r1, g1, b1;
-        if (explosion.color1.startsWith('#')) {
-            const hex = explosion.color1.slice(1);
+        if (shockwave.color1.startsWith('#')) {
+            const hex = shockwave.color1.slice(1);
             r1 = parseInt(hex.slice(0, 2), 16);
             g1 = parseInt(hex.slice(2, 4), 16);
             b1 = parseInt(hex.slice(4, 6), 16);
-        } else if (explosion.color1.startsWith('rgb(')) {
-            const rgbMatch = explosion.color1.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        } else if (shockwave.color1.startsWith('rgb(')) {
+            const rgbMatch = shockwave.color1.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
             if (rgbMatch) {
                 r1 = parseInt(rgbMatch[1]);
                 g1 = parseInt(rgbMatch[2]);
@@ -2288,13 +2357,13 @@ function drawExplosions() {
         
         // 解析颜色2
         let r2, g2, b2;
-        if (explosion.color2.startsWith('#')) {
-            const hex = explosion.color2.slice(1);
+        if (shockwave.color2.startsWith('#')) {
+            const hex = shockwave.color2.slice(1);
             r2 = parseInt(hex.slice(0, 2), 16);
             g2 = parseInt(hex.slice(2, 4), 16);
             b2 = parseInt(hex.slice(4, 6), 16);
-        } else if (explosion.color2.startsWith('rgb(')) {
-            const rgbMatch = explosion.color2.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        } else if (shockwave.color2.startsWith('rgb(')) {
+            const rgbMatch = shockwave.color2.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
             if (rgbMatch) {
                 r2 = parseInt(rgbMatch[1]);
                 g2 = parseInt(rgbMatch[2]);
@@ -2306,45 +2375,29 @@ function drawExplosions() {
             r2 = g2 = b2 = 200;
         }
         
-        // 爆炸透明度随时间衰减
-        const alphaFactor = 1 - progress * 0.8;
+        // 冲击波透明度随时间衰减
+        const alphaFactor = 1 - progress * 0.9;
         
-        // 外层爆炸（最亮最大）
-        const outerRadius = radius * 1.5;
-        const outerGradient = ctx.createRadialGradient(
-            projected.x, projected.y, 0,
+        // 绘制冲击波前沿（一个明亮的薄壳）
+        const shellThickness = Math.max(3, radius * 0.05);
+        const outerRadius = radius;
+        const innerRadius = Math.max(0, radius - shellThickness);
+        
+        // 外层冲击波（明亮前沿）
+        const shockwaveGradient = ctx.createRadialGradient(
+            projected.x, projected.y, innerRadius,
             projected.x, projected.y, outerRadius
         );
-        outerGradient.addColorStop(0, `rgba(255, 255, 200, ${0.8 * alphaFactor})`);
-        outerGradient.addColorStop(0.3, `rgba(${Math.min(255, r1 + 50)}, ${Math.min(255, g1 + 50)}, ${Math.min(255, b1 + 50)}, ${0.6 * alphaFactor})`);
-        outerGradient.addColorStop(0.7, `rgba(${r2}, ${g2}, ${b2}, ${0.3 * alphaFactor})`);
-        outerGradient.addColorStop(1, `rgba(${r2}, ${g2}, ${b2}, 0)`);
+        shockwaveGradient.addColorStop(0, `rgba(${r2}, ${g2}, ${b2}, 0)`);
+        shockwaveGradient.addColorStop(0.5, `rgba(255, 255, 255, ${0.8 * alphaFactor})`);
+        shockwaveGradient.addColorStop(0.7, `rgba(${Math.min(255, r1 + 50)}, ${Math.min(255, g1 + 50)}, ${Math.min(255, b1 + 50)}, ${0.5 * alphaFactor})`);
+        shockwaveGradient.addColorStop(1, `rgba(${r1}, ${g1}, ${b1}, 0)`);
         
-        ctx.fillStyle = outerGradient;
+        ctx.fillStyle = shockwaveGradient;
         ctx.beginPath();
         ctx.arc(projected.x, projected.y, outerRadius, 0, Math.PI * 2);
+        ctx.arc(projected.x, projected.y, innerRadius, 0, Math.PI * 2, true);
         ctx.fill();
-        
-        // 中层爆炸
-        const midRadius = radius;
-        const midGradient = ctx.createRadialGradient(
-            projected.x, projected.y, 0,
-            projected.x, projected.y, midRadius
-        );
-        midGradient.addColorStop(0, `rgba(255, 255, 255, ${0.9 * alphaFactor})`);
-        midGradient.addColorStop(0.5, `rgba(${Math.min(255, r1 + 30)}, ${Math.min(255, g1 + 30)}, ${Math.min(255, b1 + 30)}, ${0.7 * alphaFactor})`);
-        midGradient.addColorStop(1, `rgba(${r1}, ${g1}, ${b1}, 0)`);
-        
-        ctx.fillStyle = midGradient;
-        ctx.beginPath();
-        ctx.arc(projected.x, projected.y, midRadius, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // 绘制爆炸标签
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`爆炸${explosion.id}`, projected.x, projected.y - outerRadius - 10);
     }
 }
 
@@ -2366,8 +2419,8 @@ function drawBodies() {
     // 绘制星云
     drawNebulas();
     
-    // 绘制爆炸
-    drawExplosions();
+    // 绘制冲击波
+    drawShockwaves();
 
     // 创建一个包含天体和z深度的数组，用于正确排序
     const bodiesWithDepth = bodies.map(body => {
@@ -2587,7 +2640,7 @@ function drawFirstPersonView() {
     updateNebulasInFirstPersonView(referencePoint);
     
     // 更新爆炸位置
-    updateExplosionsInFirstPersonView(referencePoint);
+    updateShockwavesInFirstPersonView(referencePoint);
     
     // 计算总亮度，确保天空和地面颜色更新
     calculateTotalBrightness();
@@ -3523,7 +3576,10 @@ function updateNebulasInFirstPersonView(planetP) {
 }
 
 // 更新第一视角中的爆炸
-function updateExplosionsInFirstPersonView(planetP) {
+// 冲击波相关变量
+let shockwaveObjects = [];
+
+function updateShockwavesInFirstPersonView(planetP) {
     if (!firstPersonInitialized) return;
     
     // 观察者位于行星P的位置
@@ -3531,18 +3587,18 @@ function updateExplosionsInFirstPersonView(planetP) {
     const observerY = planetP.y;
     const observerZ = planetP.z;
     
-    // 临时存储新的爆炸对象
-    const newExplosionObjects = [];
+    // 临时存储新的冲击波对象
+    const newShockwaveObjects = [];
     
-    for (let explosion of explosions) {
-        if (!explosion.isActive) continue;
+    for (let shockwave of shockwaves) {
+        if (!shockwave.isActive) continue;
         
-        // 计算爆炸相对于观察者的位置
-        const dx = explosion.x - observerX;
-        const dy = explosion.y - observerY;
-        const dz = explosion.z - observerZ;
+        // 计算冲击波相对于观察者的位置
+        const dx = shockwave.x - observerX;
+        const dy = shockwave.y - observerY;
+        const dz = shockwave.z - observerZ;
         
-        // 所有爆炸都投影到天球上
+        // 所有冲击波都投影到天球上
         const latitude = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
         let longitude = Math.atan2(dx, dz);
         
@@ -3561,14 +3617,14 @@ function updateExplosionsInFirstPersonView(planetP) {
         y = yRotated;
         z = zRotated;
         
-        const explosionSize = explosion.radius * 0.4;
-        const progress = explosion.age / explosion.maxAge;
-        const alphaFactor = 1 - progress * 0.8;
+        const shockwaveSize = shockwave.radius * 0.4;
+        const progress = shockwave.age / shockwave.maxAge;
+        const alphaFactor = 1 - progress * 0.9;
         
-        // 解析爆炸颜色
+        // 解析冲击波颜色
         let r1, g1, b1;
-        if (explosion.color1.startsWith('#')) {
-            const hex = explosion.color1.slice(1);
+        if (shockwave.color1.startsWith('#')) {
+            const hex = shockwave.color1.slice(1);
             r1 = parseInt(hex.slice(0, 2), 16) / 255;
             g1 = parseInt(hex.slice(2, 4), 16) / 255;
             b1 = parseInt(hex.slice(4, 6), 16) / 255;
@@ -3577,8 +3633,8 @@ function updateExplosionsInFirstPersonView(planetP) {
         }
         
         let r2, g2, b2;
-        if (explosion.color2.startsWith('#')) {
-            const hex = explosion.color2.slice(1);
+        if (shockwave.color2.startsWith('#')) {
+            const hex = shockwave.color2.slice(1);
             r2 = parseInt(hex.slice(0, 2), 16) / 255;
             g2 = parseInt(hex.slice(2, 4), 16) / 255;
             b2 = parseInt(hex.slice(4, 6), 16) / 255;
@@ -3586,22 +3642,26 @@ function updateExplosionsInFirstPersonView(planetP) {
             r2 = g2 = b2 = 0.8;
         }
         
-        // 外层爆炸（最亮最大）
-        const outerSize = explosionSize * 1.5;
-        const outerGeometry = new THREE.SphereGeometry(outerSize, 32, 32);
+        // 绘制冲击波前沿（一个明亮的薄壳）
+        const shellThickness = Math.max(5, shockwaveSize * 0.05);
+        const outerSize = shockwaveSize;
+        const innerSize = Math.max(0, shockwaveSize - shellThickness);
         
+        // 创建外球
+        const outerGeometry = new THREE.SphereGeometry(outerSize, 32, 32);
         const outerMaterial = new THREE.ShaderMaterial({
             uniforms: {
-                color1: { value: new THREE.Color(1.0, 1.0, 0.8) },
+                color1: { value: new THREE.Color(1.0, 1.0, 1.0) },
                 color2: { value: new THREE.Color(r1, g1, b1) },
+                innerSize: { value: innerSize / outerSize },
                 alpha: { value: alphaFactor }
             },
             vertexShader: `
-                varying vec2 vUv;
+                varying vec3 vPosition;
                 varying float vGroundClip;
                 
                 void main() {
-                    vUv = uv;
+                    vPosition = position;
                     vec4 worldPos = modelMatrix * vec4(position, 1.0);
                     vGroundClip = max(0.0, worldPos.y + 0.5);
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -3610,22 +3670,23 @@ function updateExplosionsInFirstPersonView(planetP) {
             fragmentShader: `
                 uniform vec3 color1;
                 uniform vec3 color2;
+                uniform float innerSize;
                 uniform float alpha;
-                varying vec2 vUv;
+                varying vec3 vPosition;
                 varying float vGroundClip;
                 
                 void main() {
-                    float distanceToCenter = distance(vUv, vec2(0.5, 0.5)) * 2.0;
+                    float distanceToCenter = length(vPosition);
                     
-                    if (distanceToCenter > 1.0) {
+                    if (distanceToCenter < innerSize || distanceToCenter > 1.0) {
                         discard;
                     }
                     
-                    float coreFactor = 1.0 - distanceToCenter;
-                    coreFactor = pow(coreFactor, 0.3);
+                    float shellFactor = 1.0 - abs(distanceToCenter - (innerSize + 1.0) * 0.5) / (1.0 - innerSize);
+                    shellFactor = pow(shellFactor, 0.5);
                     
-                    vec3 color = mix(color1, color2, distanceToCenter);
-                    float finalAlpha = coreFactor * alpha;
+                    vec3 color = mix(color2, color1, shellFactor);
+                    float finalAlpha = shellFactor * alpha;
                     finalAlpha *= smoothstep(0.0, 1.0, vGroundClip);
                     
                     gl_FragColor = vec4(color, finalAlpha);
@@ -3642,81 +3703,20 @@ function updateExplosionsInFirstPersonView(planetP) {
         outerMesh.position.set(x, y, z);
         outerMesh.renderOrder = -5;
         firstPersonScene.add(outerMesh);
-        newExplosionObjects.push({
+        newShockwaveObjects.push({
             mesh: outerMesh,
-            explosion: explosion
-        });
-        
-        // 内层爆炸（更亮）
-        const innerSize = explosionSize;
-        const innerGeometry = new THREE.SphereGeometry(innerSize, 32, 32);
-        
-        const innerMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                color1: { value: new THREE.Color(1.0, 1.0, 1.0) },
-                color2: { value: new THREE.Color(Math.min(1.0, r1 + 0.2), Math.min(1.0, g1 + 0.2), Math.min(1.0, b1 + 0.2)) },
-                alpha: { value: alphaFactor }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                varying float vGroundClip;
-                
-                void main() {
-                    vUv = uv;
-                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                    vGroundClip = max(0.0, worldPos.y + 0.5);
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 color1;
-                uniform vec3 color2;
-                uniform float alpha;
-                varying vec2 vUv;
-                varying float vGroundClip;
-                
-                void main() {
-                    float distanceToCenter = distance(vUv, vec2(0.5, 0.5)) * 2.0;
-                    
-                    if (distanceToCenter > 1.0) {
-                        discard;
-                    }
-                    
-                    float coreFactor = 1.0 - distanceToCenter;
-                    coreFactor = pow(coreFactor, 0.4);
-                    
-                    vec3 color = mix(color1, color2, distanceToCenter);
-                    float finalAlpha = coreFactor * alpha * 1.2;
-                    finalAlpha *= smoothstep(0.0, 1.0, vGroundClip);
-                    
-                    gl_FragColor = vec4(color, finalAlpha);
-                }
-            `,
-            transparent: true,
-            depthWrite: false,
-            depthTest: false,
-            blending: THREE.AdditiveBlending,
-            side: THREE.DoubleSide
-        });
-        
-        const innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
-        innerMesh.position.set(x, y, z);
-        innerMesh.renderOrder = -4;
-        firstPersonScene.add(innerMesh);
-        newExplosionObjects.push({
-            mesh: innerMesh,
-            explosion: explosion
+            shockwave: shockwave
         });
     }
     
-    // 清除旧的爆炸对象
-    explosionObjects.forEach(explosionObj => {
-        firstPersonScene.remove(explosionObj.mesh);
-        if (explosionObj.mesh.geometry) explosionObj.mesh.geometry.dispose();
-        if (explosionObj.mesh.material) explosionObj.mesh.material.dispose();
+    // 清除旧的冲击波对象
+    shockwaveObjects.forEach(shockwaveObj => {
+        firstPersonScene.remove(shockwaveObj.mesh);
+        if (shockwaveObj.mesh.geometry) shockwaveObj.mesh.geometry.dispose();
+        if (shockwaveObj.mesh.material) shockwaveObj.mesh.material.dispose();
     });
     
-    explosionObjects = newExplosionObjects;
+    shockwaveObjects = newShockwaveObjects;
 }
 
 // 更新动态点光源
@@ -4659,28 +4659,35 @@ function showCivilizationHistory() {
             const civilizations = history.filter(entry => entry.id !== undefined && entry.destruction !== undefined);
 
             civilizations.forEach(entry => {
-                // 根据灭亡消息内容判断是高温还是低温毁灭
-                let destructionType = "在低温下毁灭"; // 默认低温毁灭
-                
-                // 检查被观察者关闭的情况
-                if (entry.destruction.includes("被观察者关闭")) {
-                    destructionType = "被观察者关闭";
-                }
-                // 高温毁灭的关键词
-                else if (entry.destruction.includes("烈焰") || 
-                    entry.destruction.includes("高温") || 
-                    entry.destruction.includes("巨日") || 
-                    entry.destruction.includes("三日凌空") || 
-                    entry.destruction.includes("双日凌空") || 
-                    entry.destruction.includes("飞星不动") || 
-                    entry.destruction.includes("吞噬") || 
-                    entry.destruction.includes("烈日")) {
-                    destructionType = "在高温下毁灭";
-                } 
-                // 星际探索特殊情况保留
-                else if (entry.destruction.includes("星际") || 
-                         entry.destruction.includes("家园")) {
-                    destructionType = "飞向了新家园";
+                // 根据保存的灭亡类型直接判断，避免从消息文本解析出错
+                let destructionType = entry.destruction;
+                if (entry.destructionType) {
+                    // 如果有保存的灭亡类型，直接使用
+                    switch(entry.destructionType) {
+                        case 'explosion':
+                            destructionType = "被恒星爆炸毁灭";
+                            break;
+                        case 'high_temp':
+                            destructionType = "在高温下毁灭";
+                            break;
+                        case 'low_temp':
+                            destructionType = "在低温下毁灭";
+                            break;
+                        case 'fragment_impact':
+                            destructionType = "被碎片撞击毁灭";
+                            break;
+                        case 'star_eaten':
+                            destructionType = "行星被恒星吞噬";
+                            break;
+                        case 'observer_closed':
+                            destructionType = "未知（观察提前结束）";
+                            break;
+                        case 'interstellar':
+                            destructionType = "飞向了新的家园";
+                            break;
+                        default:
+                            destructionType = entry.destruction;
+                    }
                 }
 
                 const row = document.createElement('tr');
@@ -4744,12 +4751,14 @@ function animate() {
         isDestructionByExplosion = tempResult.isExplosion;
         if (temp > 400) {
             if (tempResult.isExplosion) {
-                showTemperatureMessage("在恒星爆炸的烈焰中化为灰烬……文明的种子仍然存在");
+                currentDestructionType = 'explosion';
             } else {
-                showTemperatureMessage("在阳光的烈焰下毁灭了……文明的种子仍然存在");
+                currentDestructionType = 'high_temp';
             }
+            showTemperatureMessage();
         } else if (temp < -100) {
-            showTemperatureMessage("在无尽的凛冬下毁灭了……文明的种子仍然存在");
+            currentDestructionType = 'low_temp';
+            showTemperatureMessage();
         }
     }
 
@@ -5161,8 +5170,8 @@ function showStarInfo() {
         isShowingStarInfo = true;
         
         try {
-            // 获取所有非行星P的天体
-            const celestialBodies = bodies.filter(body => body.name !== 'p');
+            // 获取所有非行星P且非碎片的天体
+            const celestialBodies = bodies.filter(body => body.name !== 'p' && !body.isFragment);
             const planetP = bodies.find(body => body.name === 'p');
             
             if (celestialBodies.length === 0) {
@@ -5339,8 +5348,8 @@ function updateStarInfo() {
         isUpdatingStarInfo = true;
         updateStarInfo.callCount++;
         
-        // 获取所有有效的非行星P的天体 - 使用let允许后续重新赋值
-        let celestialBodies = bodies.filter(body => body && body.name && body.name !== 'p');
+        // 获取所有有效的非行星P且非碎片的天体 - 使用let允许后续重新赋值
+        let celestialBodies = bodies.filter(body => body && body.name && body.name !== 'p' && !body.isFragment);
         const planetP = bodies.find(body => body && body.name === 'p');
         
         // 提前声明referencePoint变量，确保在变化检测逻辑中可以使用
@@ -5800,6 +5809,7 @@ function checkCivilizationMilestone() {
     if (existenceTime >= 400) {
         const era = getCivilizationEra(existenceTime);
         showInterstellarMessage(era);
+        currentDestructionType = 'interstellar';
         recordCivilization("飞向了新的家园", "--", era);
         lastCivilizationRecorded = true;
     }
