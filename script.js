@@ -1,15 +1,33 @@
 // 移动设备检测和优化
+// 调试模式标志
+let debugSkipLoading = false;
+
+// 监听 Alt+S 快捷键以跳过加载动画
+document.addEventListener('keydown', function(e) {
+    if (e.altKey && e.key.toLowerCase() === 's') {
+        debugSkipLoading = true;
+        const loadingScreen = document.getElementById('loading-screen');
+        if (loadingScreen) {
+            loadingScreen.style.animation = 'hideLoading 0.5s ease-out forwards';
+            loadingScreen.style.pointerEvents = 'none';
+            document.body.style.backgroundImage = 'radial-gradient(circle at center, rgba(0, 50, 100, 0.3) 0%, rgba(0, 0, 0, 0.9) 70%)';
+        }
+    }
+});
+
 // 初始加载动画逻辑
 window.addEventListener('load', function() {
     const loadingScreen = document.getElementById('loading-screen');
     
     // 3.5秒后隐藏加载动画
     setTimeout(function() {
-        loadingScreen.style.animation = 'hideLoading 1s ease-out forwards';
-        loadingScreen.style.pointerEvents = 'none';
-        
-        // 确保背景科技感样式正确应用
-        document.body.style.backgroundImage = 'radial-gradient(circle at center, rgba(0, 50, 100, 0.3) 0%, rgba(0, 0, 0, 0.9) 70%)';
+        if (!debugSkipLoading) {
+            loadingScreen.style.animation = 'hideLoading 1s ease-out forwards';
+            loadingScreen.style.pointerEvents = 'none';
+            
+            // 确保背景科技感样式正确应用
+            document.body.style.backgroundImage = 'radial-gradient(circle at center, rgba(0, 50, 100, 0.3) 0%, rgba(0, 0, 0, 0.9) 70%)';
+        }
     }, 3500);
 });
 
