@@ -860,22 +860,109 @@ class ParticleSystem {
             const projected = project3D(particle.x, particle.y, particle.z);
             const size = particle.size * projected.sizeFactor * scale;
             const alpha = 1 - (particle.age / particle.lifetime);
+            const lifeProgress = particle.age / particle.lifetime;
             
-            ctx.fillStyle = particle.color.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
-            ctx.beginPath();
-            ctx.arc(projected.x, projected.y, size, 0, Math.PI * 2);
-            ctx.fill();
+            // 解析颜色
+            let r, g, b;
+            const colorMatch = particle.color.match(/rgb\((\d+), (\d+), (\d+)\)/);
+            if (colorMatch) {
+                r = parseInt(colorMatch[1]);
+                g = parseInt(colorMatch[2]);
+                b = parseInt(colorMatch[3]);
+            } else {
+                r = g = b = 255;
+            }
             
-            // 添加发光效果
-            if (particle.type === 'explosion' && alpha > 0.5) {
-                const glowSize = size * 2;
-                const glowAlpha = alpha * 0.3;
-                ctx.fillStyle = particle.color.replace('rgb', 'rgba').replace(')', `, ${glowAlpha})`);
-                ctx.beginPath();
-                ctx.arc(projected.x, projected.y, glowSize, 0, Math.PI * 2);
-                ctx.fill();
+            if (particle.type === 'explosion') {
+                // 爆炸粒子 - 多层发光效果
+                this.renderExplosionParticle(projected.x, projected.y, size, r, g, b, alpha, lifeProgress);
+            } else if (particle.type === 'nebula') {
+                // 星云粒子 - 柔和发光效果
+                this.renderNebulaParticle(projected.x, projected.y, size, r, g, b, alpha, lifeProgress);
             }
         }
+    }
+    
+    // 渲染爆炸粒子（带多层发光）
+    renderExplosionParticle(x, y, size, r, g, b, alpha, lifeProgress) {
+        // 保存当前状态
+        ctx.save();
+        
+        // 1. 核心光晕（最大）
+        const coreGlowSize = size * 6;
+        const coreGlowAlpha = alpha * 0.1;
+        const coreGradient = ctx.createRadialGradient(x, y, 0, x, y, coreGlowSize);
+        coreGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${coreGlowAlpha})`);
+        coreGradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${coreGlowAlpha * 0.5})`);
+        coreGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = coreGradient;
+        ctx.beginPath();
+        ctx.arc(x, y, coreGlowSize, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 2. 中间光晕
+        const midGlowSize = size * 3;
+        const midGlowAlpha = alpha * 0.25;
+        const midGradient = ctx.createRadialGradient(x, y, 0, x, y, midGlowSize);
+        midGradient.addColorStop(0, `rgba(255, 255, 200, ${midGlowAlpha})`);
+        midGradient.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, ${midGlowAlpha * 0.6})`);
+        midGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = midGradient;
+        ctx.beginPath();
+        ctx.arc(x, y, midGlowSize, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 3. 内层光晕
+        const innerGlowSize = size * 1.5;
+        const innerGlowAlpha = alpha * 0.4;
+        const innerGradient = ctx.createRadialGradient(x, y, 0, x, y, innerGlowSize);
+        innerGradient.addColorStop(0, `rgba(255, 255, 255, ${innerGlowAlpha})`);
+        innerGradient.addColorStop(0.5, `rgba(255, 200, 100, ${innerGlowAlpha * 0.7})`);
+        innerGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = innerGradient;
+        ctx.beginPath();
+        ctx.arc(x, y, innerGlowSize, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 4. 粒子核心
+        const particleAlpha = alpha;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${particleAlpha})`;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 恢复状态
+        ctx.restore();
+    }
+    
+    // 渲染星云粒子（带柔和发光）
+    renderNebulaParticle(x, y, size, r, g, b, alpha, lifeProgress) {
+        // 保存当前状态
+        ctx.save();
+        
+        // 柔和的径向渐变
+        const glowSize = size * 4;
+        const glowAlpha = alpha * 0.3;
+        
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, glowSize);
+        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${glowAlpha})`);
+        gradient.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, ${glowAlpha * 0.6})`);
+        gradient.addColorStop(0.7, `rgba(${Math.min(255, r + 20)}, ${Math.min(255, g + 20)}, ${Math.min(255, b + 20)}, ${glowAlpha * 0.3})`);
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, glowSize, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 粒子核心
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 恢复状态
+        ctx.restore();
     }
     
     // 清除所有粒子
@@ -3322,60 +3409,80 @@ function initBabylonScene() {
     console.log('Canvas和父元素检查通过');
     
     // 创建引擎
-    babylonEngine = new BABYLON.Engine(canvas, true);
+    babylonEngine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
     console.log('Babylon.js引擎创建成功');
     
     // 创建场景
     babylonScene = new BABYLON.Scene(babylonEngine);
-    babylonScene.clearColor = new BABYLON.Color4(0, 0, 0.1, 1);
+    babylonScene.clearColor = new BABYLON.Color4(0, 0, 0.02, 1);
+    babylonScene.autoClear = true;
     console.log('Babylon.js场景创建成功');
     
-    // 创建相机
-    const currentWidth = canvas.clientWidth || window.innerWidth;
-    const currentHeight = canvas.clientHeight || window.innerHeight;
-    babylonCamera = new BABYLON.ArcRotateCamera('camera', -Math.PI / 2, Math.PI / 2.5, 100, BABYLON.Vector3.Zero(), babylonScene);
+    // 创建自由相机（第一视角）
+    const planetP = bodies.find(b => b.name === 'p');
+    const startPos = planetP ? new BABYLON.Vector3(planetP.x + 50, planetP.y + 20, planetP.z) : new BABYLON.Vector3(50, 20, 0);
+    
+    babylonCamera = new BABYLON.FreeCamera('camera', startPos, babylonScene);
     babylonCamera.attachControl(canvas, true);
-    babylonCamera.wheelPrecision = 100;
+    babylonCamera.speed = 2;
+    babylonCamera.angularSensibility = 2000;
+    babylonCamera.inertia = 0.9;
+    babylonCamera.minZ = 0.1;
+    babylonCamera.maxZ = 10000;
     console.log('Babylon.js相机创建成功');
     
-    // 创建灯光
-    babylonLight = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), babylonScene);
+    // 创建主方向光
+    babylonLight = new BABYLON.DirectionalLight('dirLight', new BABYLON.Vector3(-1, -2, -1), babylonScene);
     babylonLight.intensity = 1.0;
+    babylonLight.position = new BABYLON.Vector3(100, 200, 100);
     
     // 添加环境光
-    const ambientLight = new BABYLON.HemisphericLight('ambient', new BABYLON.Vector3(0, -1, 0), babylonScene);
-    ambientLight.intensity = 0.4;
+    const ambientLight = new BABYLON.HemisphericLight('ambient', new BABYLON.Vector3(0, 1, 0), babylonScene);
+    ambientLight.intensity = 0.3;
+    ambientLight.diffuse = new BABYLON.Color3(0.5, 0.5, 1);
+    ambientLight.specular = new BABYLON.Color3(0.1, 0.1, 0.1);
+    
+    // 添加雾效
+    babylonScene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+    babylonScene.fogDensity = 0.0003;
+    babylonScene.fogColor = new BABYLON.Color3(0, 0, 0.05);
     
     // 创建地面
-    const groundSize = 1000;
-    const groundMaterial = new BABYLON.StandardMaterial('groundMat', babylonScene);
-    groundMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.4);
-    groundMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+    const groundSize = 2000;
+    const groundMaterial = new BABYLON.PBRMaterial('groundMat', babylonScene);
+    groundMaterial.albedoColor = new BABYLON.Color3(0.1, 0.1, 0.2);
+    groundMaterial.metallic = 0.0;
+    groundMaterial.roughness = 1.0;
+    groundMaterial.backFaceCulling = false;
     
     const groundMesh = BABYLON.MeshBuilder.CreateGround('ground', {
         width: groundSize,
         height: groundSize,
-        subdivisions: 100
+        subdivisions: 50
     }, babylonScene);
     groundMesh.material = groundMaterial;
+    groundMesh.receiveShadows = true;
     
-    // 创建天空穹顶
-    const skybox = BABYLON.MeshBuilder.CreateBox('skybox', { size: 1000 }, babylonScene);
-    const skyboxMaterial = new BABYLON.StandardMaterial('skyboxMat', babylonScene);
+    // 创建星空背景（天空穹顶）
+    const skybox = BABYLON.MeshBuilder.CreateBox('skybox', { size: 8000 }, babylonScene);
+    const skyboxMaterial = new BABYLON.PBRMaterial('skyboxMat', babylonScene);
     skyboxMaterial.backFaceCulling = false;
     skyboxMaterial.disableLighting = true;
+    skyboxMaterial.albedoColor = new BABYLON.Color3(0, 0, 0);
+    skyboxMaterial.emissiveColor = new BABYLON.Color3(0, 0, 0);
     
-    const skyboxTexture = new BABYLON.CubeTexture('textures/skybox', babylonScene);
-    skyboxTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
-    skyboxMaterial.reflectionTexture = skyboxTexture;
-    skybox.material = skyboxMaterial;
+    // 创建星空粒子
+    createStarfieldParticles();
     
     // 创建网格辅助线
     const gridMaterial = new BABYLON.GridMaterial('gridMat', babylonScene);
-    gridMaterial.majorUnitFrequency = 10;
-    gridMaterial.minorUnitVisibility = 0.2;
-    gridMaterial.gridRatio = 0.5;
+    gridMaterial.majorUnitFrequency = 20;
+    gridMaterial.minorUnitVisibility = 0.15;
+    gridMaterial.gridRatio = 1;
     gridMaterial.backFaceCulling = false;
+    gridMaterial.mainColor = new BABYLON.Color3(0.1, 0.1, 0.3);
+    gridMaterial.lineColor = new BABYLON.Color3(0.2, 0.2, 0.4);
+    gridMaterial.opacity = 0.4;
     
     const gridMesh = BABYLON.MeshBuilder.CreateGround('grid', {
         width: groundSize,
@@ -3386,10 +3493,16 @@ function initBabylonScene() {
     // 启动渲染循环
     babylonEngine.runRenderLoop(() => {
         if (babylonScene) {
+            // 处理相机移动
+            handleBabylonCameraMovement();
             // 更新粒子系统
             for (let ps of babylonParticleSystems) {
-                ps.update();
+                if (ps && ps.isStarted) {
+                    // Babylon.js粒子系统会自动更新
+                }
             }
+            // 更新天体位置
+            updateBabylonBodies();
             babylonScene.render();
         }
     });
@@ -3401,6 +3514,54 @@ function initBabylonScene() {
     
     babylonInitialized = true;
     console.log('Babylon.js第一视角场景初始化完成');
+}
+
+// 创建星空粒子
+function createStarfieldParticles() {
+    if (!babylonScene) return;
+    
+    const starfield = new BABYLON.ParticleSystem('starfield', 5000, babylonScene);
+    
+    // 创建球形发射器
+    starfield.emitter = BABYLON.Vector3.Zero();
+    starfield.minEmitBox = new BABYLON.Vector3(-3000, -3000, -3000);
+    starfield.maxEmitBox = new BABYLON.Vector3(3000, 3000, 3000);
+    
+    // 颜色
+    starfield.color1 = new BABYLON.Color4(1, 1, 1, 1);
+    starfield.color2 = new BABYLON.Color4(0.8, 0.9, 1, 1);
+    starfield.colorDead = new BABYLON.Color4(0, 0, 0, 0);
+    
+    // 大小
+    starfield.minSize = 0.5;
+    starfield.maxSize = 2;
+    
+    // 生命周期
+    starfield.minLifeTime = 999999;
+    starfield.maxLifeTime = 999999;
+    
+    // 速度
+    starfield.minEmitPower = 0;
+    starfield.maxEmitPower = 0;
+    
+    // 透明度
+    starfield.addSizeGradient(0, 0.5);
+    starfield.addSizeGradient(1, 2);
+    starfield.addColorGradient(0, new BABYLON.Color4(1, 1, 1, 0.8));
+    starfield.addColorGradient(1, new BABYLON.Color4(0.5, 0.7, 1, 0.4));
+    
+    starfield.updateSpeed = 0;
+    
+    // 一次性发射所有粒子
+    starfield.manualEmitCount = 5000;
+    starfield.start();
+    
+    // 立即停止（只需要一次发射）
+    setTimeout(() => {
+        starfield.stop();
+    }, 100);
+    
+    babylonParticleSystems.push(starfield);
 }
 
 // 初始化第一视角3D场景
@@ -5367,24 +5528,10 @@ function updateBabylonBodies() {
 function createBabylonExplosion(x, y, z, color1, color2) {
     if (!babylonScene) return;
     
-    // 创建粒子系统
-    const ps = new BABYLON.ParticleSystem("explosion", 2000, babylonScene);
+    // 创建主爆炸粒子系统
+    const explosionPs = new BABYLON.ParticleSystem("explosion", 3000, babylonScene);
     
-    // 创建粒子材质
-    const particleMaterial = new BABYLON.StandardMaterial("particleMat", babylonScene);
-    particleMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1);
-    particleMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1);
-    particleMaterial.backFaceCulling = false;
-    
-    // 使用点精灵
-    ps.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/dist/textures/flare.png", babylonScene);
-    
-    // 粒子系统设置
-    ps.emitter = new BABYLON.Vector3(x, y, z);
-    ps.minEmitBox = new BABYLON.Vector3(-10, -10, -10);
-    ps.maxEmitBox = new BABYLON.Vector3(10, 10, 10);
-    
-    // 颜色
+    // 解析颜色
     const r1 = parseInt(color1.slice(1, 3), 16) / 255;
     const g1 = parseInt(color1.slice(3, 5), 16) / 255;
     const b1 = parseInt(color1.slice(5, 7), 16) / 255;
@@ -5393,67 +5540,96 @@ function createBabylonExplosion(x, y, z, color1, color2) {
     const g2 = parseInt(color2.slice(3, 5), 16) / 255;
     const b2 = parseInt(color2.slice(5, 7), 16) / 255;
     
-    ps.color1 = new BABYLON.Color4(r1, g1, b1, 1);
-    ps.color2 = new BABYLON.Color4(r2, g2, b2, 0.5);
-    ps.colorDead = new BABYLON.Color4(0, 0, 0, 0);
+    // 使用发光纹理
+    explosionPs.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/dist/textures/flare.png", babylonScene);
     
-    // 大小
-    ps.minSize = 0.5;
-    ps.maxSize = 3;
+    // 粒子系统设置
+    explosionPs.emitter = new BABYLON.Vector3(x, y, z);
+    explosionPs.minEmitBox = new BABYLON.Vector3(-5, -5, -5);
+    explosionPs.maxEmitBox = new BABYLON.Vector3(5, 5, 5);
+    
+    // 颜色渐变
+    explosionPs.addColorGradient(0, new BABYLON.Color4(1, 1, 1, 1));
+    explosionPs.addColorGradient(0.1, new BABYLON.Color4(r1, g1, b1, 0.9));
+    explosionPs.addColorGradient(0.3, new BABYLON.Color4(r2, g2, b2, 0.7));
+    explosionPs.addColorGradient(0.7, new BABYLON.Color4(1, 0.5, 0, 0.4));
+    explosionPs.addColorGradient(1, new BABYLON.Color4(0, 0, 0, 0));
+    
+    // 大小渐变
+    explosionPs.addSizeGradient(0, 2);
+    explosionPs.addSizeGradient(0.3, 5);
+    explosionPs.addSizeGradient(0.7, 3);
+    explosionPs.addSizeGradient(1, 0.5);
     
     // 生命周期
-    ps.minLifeTime = 0.5;
-    ps.maxLifeTime = 2;
+    explosionPs.minLifeTime = 1.5;
+    explosionPs.maxLifeTime = 4;
     
     // 速度
-    ps.minEmitPower = 10;
-    ps.maxEmitPower = 30;
-    ps.updateSpeed = 0.016;
+    explosionPs.minEmitPower = 20;
+    explosionPs.maxEmitPower = 50;
+    explosionPs.updateSpeed = 0.01;
     
-    // 方向
-    ps.direction1 = new BABYLON.Vector3(-1, -1, -1);
-    ps.direction2 = new BABYLON.Vector3(1, 1, 1);
+    // 方向（球形扩散）
+    explosionPs.direction1 = new BABYLON.Vector3(-1, -1, -1);
+    explosionPs.direction2 = new BABYLON.Vector3(1, 1, 1);
+    
+    // 旋转
+    explosionPs.minAngularSpeed = -2;
+    explosionPs.maxAngularSpeed = 2;
+    
+    // 混合模式
+    explosionPs.blendMode = BABYLON.ParticleSystem.BLENDMODE_ONEONE;
     
     // 开始发射
-    ps.start();
+    explosionPs.start();
     
-    // 3秒后停止并清理
-    setTimeout(() => {
-        ps.stop();
+    // 创建冲击波粒子
+    const shockwavePs = new BABYLON.ParticleSystem("shockwave", 1000, babylonScene);
+    shockwavePs.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/dist/textures/flare.png", babylonScene);
+    shockwavePs.emitter = new BABYLON.Vector3(x, y, z);
+    
+    shockwavePs.addColorGradient(0, new BABYLON.Color4(1, 1, 1, 0.8));
+    shockwavePs.addColorGradient(0.5, new BABYLON.Color4((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2, 0.4));
+    shockwavePs.addColorGradient(1, new BABYLON.Color4(0, 0, 0, 0));
+    
+    shockwavePs.addSizeGradient(0, 1);
+    shockwavePs.addSizeGradient(1, 8);
+    
+    shockwavePs.minLifeTime = 0.5;
+    shockwavePs.maxLifeTime = 1.5;
+    shockwavePs.minEmitPower = 40;
+    shockwavePs.maxEmitPower = 60;
+    shockwavePs.direction1 = new BABYLON.Vector3(-1, -0.5, -1);
+    shockwavePs.direction2 = new BABYLON.Vector3(1, 0.5, 1);
+    shockwavePs.blendMode = BABYLON.ParticleSystem.BLENDMODE_ONEONE;
+    shockwavePs.start();
+    
+    // 清理粒子
+    const cleanupPs = (ps, stopTime, disposeTime) => {
         setTimeout(() => {
-            ps.dispose();
-            const index = babylonParticleSystems.indexOf(ps);
-            if (index > -1) {
-                babylonParticleSystems.splice(index, 1);
-            }
-        }, 2000);
-    }, 500);
+            ps.stop();
+            setTimeout(() => {
+                ps.dispose();
+                const index = babylonParticleSystems.indexOf(ps);
+                if (index > -1) {
+                    babylonParticleSystems.splice(index, 1);
+                }
+            }, disposeTime);
+        }, stopTime);
+    };
     
-    babylonParticleSystems.push(ps);
+    cleanupPs(explosionPs, 800, 3000);
+    cleanupPs(shockwavePs, 300, 1500);
+    
+    babylonParticleSystems.push(explosionPs, shockwavePs);
 }
 
 // 为Babylon.js场景创建星云粒子系统
 function createBabylonNebulaParticles(nebula) {
     if (!babylonScene) return;
     
-    // 创建粒子系统
-    const ps = new BABYLON.ParticleSystem("nebula", 3000, babylonScene);
-    
-    // 创建粒子材质
-    const particleMaterial = new BABYLON.StandardMaterial("nebulaParticleMat", babylonScene);
-    particleMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1);
-    particleMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1);
-    particleMaterial.backFaceCulling = false;
-    
-    // 使用点精灵
-    ps.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/dist/textures/flare.png", babylonScene);
-    
-    // 粒子系统设置
-    ps.emitter = new BABYLON.Vector3(nebula.x, nebula.y, nebula.z);
-    ps.minEmitBox = new BABYLON.Vector3(-nebula.currentRadius * 0.5, -nebula.currentRadius * 0.5, -nebula.currentRadius * 0.25);
-    ps.maxEmitBox = new BABYLON.Vector3(nebula.currentRadius * 0.5, nebula.currentRadius * 0.5, nebula.currentRadius * 0.25);
-    
-    // 颜色
+    // 解析颜色
     const r1 = parseInt(nebula.color1.slice(1, 3), 16) / 255;
     const g1 = parseInt(nebula.color1.slice(3, 5), 16) / 255;
     const b1 = parseInt(nebula.color1.slice(5, 7), 16) / 255;
@@ -5462,43 +5638,106 @@ function createBabylonNebulaParticles(nebula) {
     const g2 = parseInt(nebula.color2.slice(3, 5), 16) / 255;
     const b2 = parseInt(nebula.color2.slice(5, 7), 16) / 255;
     
-    ps.color1 = new BABYLON.Color4(r1, g1, b1, 0.3);
-    ps.color2 = new BABYLON.Color4(r2, g2, b2, 0.1);
-    ps.colorDead = new BABYLON.Color4(0, 0, 0, 0);
+    const radius = nebula.currentRadius;
     
-    // 大小
-    ps.minSize = 1;
-    ps.maxSize = 4;
+    // 创建主星云粒子系统（核心）
+    const corePs = new BABYLON.ParticleSystem("nebulaCore", 4000, babylonScene);
+    corePs.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/dist/textures/flare.png", babylonScene);
+    corePs.emitter = new BABYLON.Vector3(nebula.x, nebula.y, nebula.z);
+    corePs.minEmitBox = new BABYLON.Vector3(-radius * 0.3, -radius * 0.3, -radius * 0.15);
+    corePs.maxEmitBox = new BABYLON.Vector3(radius * 0.3, radius * 0.3, radius * 0.15);
     
-    // 生命周期
-    ps.minLifeTime = 3;
-    ps.maxLifeTime = 8;
+    // 核心粒子颜色渐变
+    corePs.addColorGradient(0, new BABYLON.Color4((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2, 0.6));
+    corePs.addColorGradient(0.5, new BABYLON.Color4(r1, g1, b1, 0.4));
+    corePs.addColorGradient(1, new BABYLON.Color4(0, 0, 0, 0));
     
-    // 速度
-    ps.minEmitPower = 2;
-    ps.maxEmitPower = 5;
-    ps.updateSpeed = 0.016;
+    // 核心粒子大小渐变
+    corePs.addSizeGradient(0, 2);
+    corePs.addSizeGradient(1, 0.5);
     
-    // 方向
-    ps.direction1 = new BABYLON.Vector3(-1, -1, -1);
-    ps.direction2 = new BABYLON.Vector3(1, 1, 1);
+    corePs.minLifeTime = 5;
+    corePs.maxLifeTime = 12;
+    corePs.minEmitPower = 1;
+    corePs.maxEmitPower = 3;
+    corePs.updateSpeed = 0.02;
+    corePs.direction1 = new BABYLON.Vector3(-0.5, -0.5, -0.5);
+    corePs.direction2 = new BABYLON.Vector3(0.5, 0.5, 0.5);
+    corePs.blendMode = BABYLON.ParticleSystem.BLENDMODE_STANDARD;
+    corePs.start();
     
-    // 开始发射
-    ps.start();
+    // 创建外层星云粒子系统
+    const outerPs = new BABYLON.ParticleSystem("nebulaOuter", 3000, babylonScene);
+    outerPs.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/dist/textures/flare.png", babylonScene);
+    outerPs.emitter = new BABYLON.Vector3(nebula.x, nebula.y, nebula.z);
+    outerPs.minEmitBox = new BABYLON.Vector3(-radius * 0.6, -radius * 0.6, -radius * 0.3);
+    outerPs.maxEmitBox = new BABYLON.Vector3(radius * 0.6, radius * 0.6, radius * 0.3);
     
-    // 10秒后停止并清理
-    setTimeout(() => {
-        ps.stop();
+    // 外层粒子颜色渐变
+    outerPs.addColorGradient(0, new BABYLON.Color4(r2, g2, b2, 0.3));
+    outerPs.addColorGradient(0.5, new BABYLON.Color4(r1, g1, b1, 0.2));
+    outerPs.addColorGradient(1, new BABYLON.Color4(0, 0, 0, 0));
+    
+    // 外层粒子大小渐变
+    outerPs.addSizeGradient(0, 3);
+    outerPs.addSizeGradient(1, 1);
+    
+    outerPs.minLifeTime = 8;
+    outerPs.maxLifeTime = 15;
+    outerPs.minEmitPower = 0.5;
+    outerPs.maxEmitPower = 2;
+    outerPs.updateSpeed = 0.015;
+    outerPs.direction1 = new BABYLON.Vector3(-1, -0.8, -1);
+    outerPs.direction2 = new BABYLON.Vector3(1, 0.8, 1);
+    outerPs.blendMode = BABYLON.ParticleSystem.BLENDMODE_ONEONE;
+    outerPs.start();
+    
+    // 创建旋转的星云环粒子系统
+    const ringPs = new BABYLON.ParticleSystem("nebulaRing", 2000, babylonScene);
+    ringPs.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/dist/textures/flare.png", babylonScene);
+    ringPs.emitter = new BABYLON.Vector3(nebula.x, nebula.y, nebula.z);
+    ringPs.minEmitBox = new BABYLON.Vector3(-radius * 0.7, -radius * 0.1, -radius * 0.7);
+    ringPs.maxEmitBox = new BABYLON.Vector3(radius * 0.7, radius * 0.1, radius * 0.7);
+    
+    // 环粒子颜色渐变
+    ringPs.addColorGradient(0, new BABYLON.Color4(1, 1, 1, 0.4));
+    ringPs.addColorGradient(0.3, new BABYLON.Color4((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2, 0.3));
+    ringPs.addColorGradient(1, new BABYLON.Color4(0, 0, 0, 0));
+    
+    ringPs.addSizeGradient(0, 1.5);
+    ringPs.addSizeGradient(1, 0.5);
+    
+    ringPs.minLifeTime = 10;
+    ringPs.maxLifeTime = 20;
+    ringPs.minEmitPower = 0.3;
+    ringPs.maxEmitPower = 1;
+    ringPs.updateSpeed = 0.01;
+    ringPs.direction1 = new BABYLON.Vector3(-1, 0, -1);
+    ringPs.direction2 = new BABYLON.Vector3(1, 0, 1);
+    ringPs.minAngularSpeed = -0.5;
+    ringPs.maxAngularSpeed = 0.5;
+    ringPs.blendMode = BABYLON.ParticleSystem.BLENDMODE_ONEONE;
+    ringPs.start();
+    
+    // 清理粒子
+    const cleanupPs = (ps, stopTime, disposeTime) => {
         setTimeout(() => {
-            ps.dispose();
-            const index = babylonParticleSystems.indexOf(ps);
-            if (index > -1) {
-                babylonParticleSystems.splice(index, 1);
-            }
-        }, 8000);
-    }, 2000);
+            ps.stop();
+            setTimeout(() => {
+                ps.dispose();
+                const index = babylonParticleSystems.indexOf(ps);
+                if (index > -1) {
+                    babylonParticleSystems.splice(index, 1);
+                }
+            }, disposeTime);
+        }, stopTime);
+    };
     
-    babylonParticleSystems.push(ps);
+    cleanupPs(corePs, 3000, 12000);
+    cleanupPs(outerPs, 4000, 15000);
+    cleanupPs(ringPs, 5000, 20000);
+    
+    babylonParticleSystems.push(corePs, outerPs, ringPs);
 }
 
 // 处理Babylon.js相机移动
