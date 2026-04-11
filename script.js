@@ -4271,6 +4271,22 @@ function updateNebulasInFirstPersonView(planetP) {
         
         nebulaSize = nebula.currentRadius * 0.3;
         
+        // 根据相机到星云的距离动态调整星云大小 - 离得越近越大
+        if (babylonCamera) {
+            // 计算相机到星云的距离
+            const distance = Math.sqrt(
+                (babylonCamera.position.x - x) * (babylonCamera.position.x - x) +
+                (babylonCamera.position.y - y) * (babylonCamera.position.y - y) +
+                (babylonCamera.position.z - z) * (babylonCamera.position.z - z)
+            );
+            
+            // 距离越近，星云越大；距离越远，星云越小
+            // 使用对数函数来让大小变化更自然
+            const baseDistance = 480; // 基准距离
+            const sizeMultiplier = Math.max(0.2, Math.min(10.0, 1.0 + (baseDistance - distance) / baseDistance * 1.5));
+            nebulaSize *= sizeMultiplier;
+        }
+        
         // 解析星云颜色
         let r1, g1, b1;
         if (nebula.color1.startsWith('#')) {
@@ -5796,6 +5812,22 @@ function updateNebulasInBabylonView(planetP) {
         z = zRotated;
         
         nebulaSize = nebula.currentRadius * 0.3;
+        
+        // 根据相机到星云的距离动态调整星云大小 - 离得越近越大
+        if (babylonCamera) {
+            // 计算相机到星云的距离
+            const distance = Math.sqrt(
+                (babylonCamera.position.x - x) * (babylonCamera.position.x - x) +
+                (babylonCamera.position.y - y) * (babylonCamera.position.y - y) +
+                (babylonCamera.position.z - z) * (babylonCamera.position.z - z)
+            );
+            
+            // 距离越近，星云越大；距离越远，星云越小
+            // 使用对数函数来让大小变化更自然
+            const baseDistance = 480; // 基准距离
+            const sizeMultiplier = Math.max(0.5, Math.min(3.0, 1.0 + (baseDistance - distance) / baseDistance * 1.5));
+            nebulaSize *= sizeMultiplier;
+        }
         
         // 检查是否需要更新或创建星云
         let nebulaObj = babylonNebulaMeshMap.get(nebula.id);
