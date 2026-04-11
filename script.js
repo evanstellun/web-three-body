@@ -714,6 +714,184 @@ const greekLetters = ['α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ'
 let shockwaves = [];
 let fragmentCounter = 0; // 全局碎片计数器，用于生成 f-1, f-2 等名称
 
+// 粒子系统
+class ParticleSystem {
+    constructor() {
+        this.particles = [];
+        this.maxParticles = 3000; // 减少最大粒子数以提高性能
+        this.lastCleanupTime = 0;
+    }
+    
+    // 创建爆炸粒子
+    createExplosion(x, y, z, count, color1, color2, speed) {
+        for (let i = 0; i < count; i++) {
+            if (this.particles.length >= this.maxParticles) break;
+            
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * 50;
+            const velocity = {
+                x: Math.cos(angle) * speed * (0.5 + Math.random() * 0.5),
+                y: Math.sin(angle) * speed * (0.5 + Math.random() * 0.5),
+                z: (Math.random() - 0.5) * speed * 0.3
+            };
+            
+            const size = 2 + Math.random() * 4;
+            const lifetime = 1 + Math.random() * 2;
+            const age = 0;
+            
+            // 混合颜色
+            const r1 = parseInt(color1.slice(1, 3), 16);
+            const g1 = parseInt(color1.slice(3, 5), 16);
+            const b1 = parseInt(color1.slice(5, 7), 16);
+            
+            const r2 = parseInt(color2.slice(1, 3), 16);
+            const g2 = parseInt(color2.slice(3, 5), 16);
+            const b2 = parseInt(color2.slice(5, 7), 16);
+            
+            const r = Math.round(r1 + (r2 - r1) * Math.random());
+            const g = Math.round(g1 + (g2 - g1) * Math.random());
+            const b = Math.round(b1 + (b2 - b1) * Math.random());
+            
+            this.particles.push({
+                x, y, z,
+                velocity,
+                size,
+                lifetime,
+                age,
+                color: `rgb(${r}, ${g}, ${b})`,
+                type: 'explosion'
+            });
+        }
+    }
+    
+    // 创建星云粒子
+    createNebulaParticles(nebula, count) {
+        for (let i = 0; i < count; i++) {
+            if (this.particles.length >= this.maxParticles) break;
+            
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * nebula.currentRadius;
+            const x = nebula.x + Math.cos(angle) * distance;
+            const y = nebula.y + Math.sin(angle) * distance;
+            const z = nebula.z + (Math.random() - 0.5) * distance * 0.5;
+            
+            const velocity = {
+                x: (Math.random() - 0.5) * 2,
+                y: (Math.random() - 0.5) * 2,
+                z: (Math.random() - 0.5) * 1
+            };
+            
+            const size = 1 + Math.random() * 3;
+            const lifetime = 3 + Math.random() * 5;
+            const age = 0;
+            
+            // 混合星云颜色
+            const r1 = parseInt(nebula.color1.slice(1, 3), 16);
+            const g1 = parseInt(nebula.color1.slice(3, 5), 16);
+            const b1 = parseInt(nebula.color1.slice(5, 7), 16);
+            
+            const r2 = parseInt(nebula.color2.slice(1, 3), 16);
+            const g2 = parseInt(nebula.color2.slice(3, 5), 16);
+            const b2 = parseInt(nebula.color2.slice(5, 7), 16);
+            
+            const r = Math.round(r1 + (r2 - r1) * Math.random());
+            const g = Math.round(g1 + (g2 - g1) * Math.random());
+            const b = Math.round(b1 + (b2 - b1) * Math.random());
+            
+            this.particles.push({
+                x, y, z,
+                velocity,
+                size,
+                lifetime,
+                age,
+                color: `rgb(${r}, ${g}, ${b})`,
+                type: 'nebula',
+                nebulaId: nebula.id
+            });
+        }
+    }
+    
+    // 更新粒子
+    update(dt) {
+        const maxParticlesPerFrame = 500; // 每帧处理的最大粒子数
+        let processed = 0;
+        
+        for (let i = this.particles.length - 1; i >= 0 && processed < maxParticlesPerFrame; i--) {
+            const particle = this.particles[i];
+            
+            // 更新位置
+            particle.x += particle.velocity.x * dt;
+            particle.y += particle.velocity.y * dt;
+            particle.z += particle.velocity.z * dt;
+            
+            // 更新年龄
+            particle.age += dt;
+            
+            // 应用重力/阻力
+            if (particle.type === 'explosion') {
+                particle.velocity.x *= 0.99;
+                particle.velocity.y *= 0.99;
+                particle.velocity.z *= 0.99;
+            } else if (particle.type === 'nebula') {
+                particle.velocity.x *= 0.98;
+                particle.velocity.y *= 0.98;
+                particle.velocity.z *= 0.98;
+            }
+            
+            // 移除过期粒子
+            if (particle.age > particle.lifetime) {
+                this.particles.splice(i, 1);
+            }
+            
+            processed++;
+        }
+        
+        // 定期清理过期粒子
+        const now = Date.now();
+        if (now - this.lastCleanupTime > 1000) { // 每秒清理一次
+            this.particles = this.particles.filter(p => p.age <= p.lifetime);
+            this.lastCleanupTime = now;
+        }
+    }
+    
+    // 渲染粒子
+    render() {
+        for (let particle of this.particles) {
+            const projected = project3D(particle.x, particle.y, particle.z);
+            const size = particle.size * projected.sizeFactor * scale;
+            const alpha = 1 - (particle.age / particle.lifetime);
+            
+            ctx.fillStyle = particle.color.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+            ctx.beginPath();
+            ctx.arc(projected.x, projected.y, size, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 添加发光效果
+            if (particle.type === 'explosion' && alpha > 0.5) {
+                const glowSize = size * 2;
+                const glowAlpha = alpha * 0.3;
+                ctx.fillStyle = particle.color.replace('rgb', 'rgba').replace(')', `, ${glowAlpha})`);
+                ctx.beginPath();
+                ctx.arc(projected.x, projected.y, glowSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+    }
+    
+    // 清除所有粒子
+    clear() {
+        this.particles = [];
+    }
+    
+    // 获取粒子数量
+    getCount() {
+        return this.particles.length;
+    }
+}
+
+// 初始化粒子系统
+const particleSystem = new ParticleSystem();
+
 class Shockwave {
     constructor(id, x, y, z, vx, vy, vz, power, color1, color2) {
         this.id = id;
@@ -1320,6 +1498,16 @@ function checkCollisions() {
                     shockwaves.push(shockwave);
                     console.log('冲击波已创建:', { shockwaveId, shockwavesCount: shockwaves.length });
                     
+                    // 创建爆炸粒子效果
+                    const particleCount = Math.min(200, Math.max(50, Math.floor(totalMass / 1000)));
+                    const explosionSpeed = 30 + Math.random() * 20;
+                    particleSystem.createExplosion(newX, newY, newZ, particleCount, coreBody.color, nonCoreBody.color, explosionSpeed);
+                    
+                    // 为Babylon.js场景创建爆炸粒子效果
+                    if (babylonInitialized) {
+                        createBabylonExplosion(newX, newY, newZ, coreBody.color, nonCoreBody.color);
+                    }
+                    
                     // 更新星云核
                     coreBody.mass = coreMass;
                     coreBody.x = newX;
@@ -1399,6 +1587,16 @@ function checkCollisions() {
                     );
                     shockwaves.push(shockwave);
                     console.log('冲击波已创建:', { shockwaveId, shockwavesCount: shockwaves.length });
+                    
+                    // 创建爆炸粒子效果
+                    const particleCount = Math.min(300, Math.max(100, Math.floor(totalMass / 800)));
+                    const explosionSpeed = 40 + Math.random() * 30;
+                    particleSystem.createExplosion(newX, newY, newZ, particleCount, body1.color, body2.color, explosionSpeed);
+                    
+                    // 为Babylon.js场景创建爆炸粒子效果
+                    if (babylonInitialized) {
+                        createBabylonExplosion(newX, newY, newZ, body1.color, body2.color);
+                    }
                     
                     // 生成碎片：10-20个
                     const fragmentCount = Math.floor(Math.random() * 11) + 10;
@@ -1493,6 +1691,15 @@ function checkCollisions() {
                         newCoreBody
                     );
                     nebulas.push(nebula);
+                    
+                    // 创建星云粒子效果
+                    const nebulaParticleCount = Math.min(500, Math.max(200, Math.floor(nebulaMass / 500)));
+                    particleSystem.createNebulaParticles(nebula, nebulaParticleCount);
+                    
+                    // 为Babylon.js场景创建星云粒子效果
+                    if (babylonInitialized) {
+                        createBabylonNebulaParticles(nebula);
+                    }
                     
                     // 移除碰撞的恒星
                     bodies.splice(j, 1);
@@ -2147,6 +2354,9 @@ function updateBodiesPosition() {
     // 清理过期的冲击波
     shockwaves = shockwaves.filter(shockwave => shockwave.isActive);
     
+    // 更新粒子系统
+    particleSystem.update(dt);
+    
     // 计算并应用引力
     for (let i = 0; i < bodies.length; i++) {
         let fx = 0, fy = 0, fz = 0;
@@ -2781,7 +2991,13 @@ function drawBodies() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (isFirstPersonView) {
-        drawFirstPersonView();
+        if (babylonInitialized) {
+            // 使用Babylon.js渲染第一视角
+            drawBabylonView();
+        } else {
+            // 回退到Three.js渲染
+            drawFirstPersonView();
+        }
         return;
     }
 
@@ -2798,6 +3014,9 @@ function drawBodies() {
 
     // 4. 绘制冲击波（星云之上）
     drawShockwaves();
+
+    // 4.5 绘制粒子效果（冲击波之上，天体之下）
+    particleSystem.render();
 
     // 5. 绘制天体（最上层）
     // 创建一个包含天体和z深度的数组，用于正确排序
@@ -3065,9 +3284,124 @@ let atmosphericFog;
 let nebulaObjects = [];
 let explosionObjects = [];
 
+// Babylon.js第一视角场景变量
+let babylonScene, babylonEngine, babylonCamera, babylonLight;
+let babylonSkyDome, babylonGround, babylonGrid;
+let babylonStarObjects = [];
+let babylonNebulaObjects = [];
+let babylonExplosionObjects = [];
+let babylonParticleSystems = [];
+let babylonInitialized = false;
+
 // 第一视角移动控制
 const firstPersonMoveSpeed = 5.0; // 移动速度（加快）
 let keys = { w: false, a: false, s: false, d: false }; // 按键状态
+
+// 初始化Babylon.js第一视角场景
+function initBabylonScene() {
+    console.log('开始初始化Babylon.js第一视角场景...');
+    
+    // 检查Babylon.js是否可用
+    if (typeof BABYLON === 'undefined') {
+        console.error('Babylon.js库未加载！');
+        alert('Babylon.js库未正确加载，请检查网络连接');
+        return;
+    }
+    
+    // 检查canvas和parentElement
+    if (!canvas) {
+        console.error('Canvas元素不存在！');
+        return;
+    }
+    
+    if (!canvas.parentElement) {
+        console.error('Canvas的父元素不存在！');
+        return;
+    }
+    
+    console.log('Canvas和父元素检查通过');
+    
+    // 创建引擎
+    babylonEngine = new BABYLON.Engine(canvas, true);
+    console.log('Babylon.js引擎创建成功');
+    
+    // 创建场景
+    babylonScene = new BABYLON.Scene(babylonEngine);
+    babylonScene.clearColor = new BABYLON.Color4(0, 0, 0.1, 1);
+    console.log('Babylon.js场景创建成功');
+    
+    // 创建相机
+    const currentWidth = canvas.clientWidth || window.innerWidth;
+    const currentHeight = canvas.clientHeight || window.innerHeight;
+    babylonCamera = new BABYLON.ArcRotateCamera('camera', -Math.PI / 2, Math.PI / 2.5, 100, BABYLON.Vector3.Zero(), babylonScene);
+    babylonCamera.attachControl(canvas, true);
+    babylonCamera.wheelPrecision = 100;
+    console.log('Babylon.js相机创建成功');
+    
+    // 创建灯光
+    babylonLight = new BABYLON.HemisphericLight('light', new BABYLON.Vector3(0, 1, 0), babylonScene);
+    babylonLight.intensity = 1.0;
+    
+    // 添加环境光
+    const ambientLight = new BABYLON.HemisphericLight('ambient', new BABYLON.Vector3(0, -1, 0), babylonScene);
+    ambientLight.intensity = 0.4;
+    
+    // 创建地面
+    const groundSize = 1000;
+    const groundMaterial = new BABYLON.StandardMaterial('groundMat', babylonScene);
+    groundMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.4);
+    groundMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+    
+    const groundMesh = BABYLON.MeshBuilder.CreateGround('ground', {
+        width: groundSize,
+        height: groundSize,
+        subdivisions: 100
+    }, babylonScene);
+    groundMesh.material = groundMaterial;
+    
+    // 创建天空穹顶
+    const skybox = BABYLON.MeshBuilder.CreateBox('skybox', { size: 1000 }, babylonScene);
+    const skyboxMaterial = new BABYLON.StandardMaterial('skyboxMat', babylonScene);
+    skyboxMaterial.backFaceCulling = false;
+    skyboxMaterial.disableLighting = true;
+    
+    const skyboxTexture = new BABYLON.CubeTexture('textures/skybox', babylonScene);
+    skyboxTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
+    skyboxMaterial.reflectionTexture = skyboxTexture;
+    skybox.material = skyboxMaterial;
+    
+    // 创建网格辅助线
+    const gridMaterial = new BABYLON.GridMaterial('gridMat', babylonScene);
+    gridMaterial.majorUnitFrequency = 10;
+    gridMaterial.minorUnitVisibility = 0.2;
+    gridMaterial.gridRatio = 0.5;
+    gridMaterial.backFaceCulling = false;
+    
+    const gridMesh = BABYLON.MeshBuilder.CreateGround('grid', {
+        width: groundSize,
+        height: groundSize
+    }, babylonScene);
+    gridMesh.material = gridMaterial;
+    
+    // 启动渲染循环
+    babylonEngine.runRenderLoop(() => {
+        if (babylonScene) {
+            // 更新粒子系统
+            for (let ps of babylonParticleSystems) {
+                ps.update();
+            }
+            babylonScene.render();
+        }
+    });
+    
+    // 窗口大小调整
+    window.addEventListener('resize', () => {
+        babylonEngine.resize();
+    });
+    
+    babylonInitialized = true;
+    console.log('Babylon.js第一视角场景初始化完成');
+}
 
 // 初始化第一视角3D场景
 function initFirstPersonScene() {
@@ -4912,7 +5246,16 @@ function drawStarsOnSkyDome(planetP) {
 // 绘制第一视角控制提示
 function drawFirstPersonControls() {
     if (isFirstPersonView) {
-        // 删除了第一视角模式下显示的温度和行星距离窗口
+        // 第一视角模式下显示操作说明
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(10, 10, 300, 80);
+        
+        ctx.fillStyle = 'white';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText('第一视角模式', 20, 30);
+        ctx.fillText('WASD: 移动', 20, 50);
+        ctx.fillText('ESC键: 退出第一视角', 20, 70);
     } else {
         // 普通模式下显示操作说明
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -4924,6 +5267,274 @@ function drawFirstPersonControls() {
         ctx.fillText('第一视角模式', 20, 30);
         ctx.fillText('WASD: 移动', 20, 50);
         ctx.fillText('ESC键: 退出第一视角', 20, 70);
+    }
+}
+
+// 绘制Babylon.js第一视角场景
+function drawBabylonView() {
+    if (!babylonInitialized || !babylonScene) {
+        return;
+    }
+    
+    // 更新Babylon.js场景中的天体
+    updateBabylonBodies();
+    
+    // 处理相机移动
+    handleBabylonCameraMovement();
+    
+    // 绘制控制提示
+    drawFirstPersonControls();
+}
+
+// 更新Babylon.js场景中的天体
+function updateBabylonBodies() {
+    if (!babylonScene) {
+        return;
+    }
+    
+    // 清除现有的天体
+    for (let mesh of babylonStarObjects) {
+        mesh.dispose();
+    }
+    babylonStarObjects = [];
+    
+    // 创建新的天体
+    for (let body of bodies) {
+        if (body.name === 'p') {
+            // 行星P - 创建一个特殊的地球样式
+            const planetSize = body.radius * 2;
+            const planetMesh = BABYLON.MeshBuilder.CreateSphere(body.name, {
+                diameter: planetSize
+            }, babylonScene);
+            
+            planetMesh.position = new BABYLON.Vector3(body.x, body.y, body.z);
+            
+            const planetMaterial = new BABYLON.StandardMaterial(body.name + 'Mat', babylonScene);
+            planetMaterial.diffuseColor = new BABYLON.Color3(0, 0.5, 1);
+            planetMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+            planetMaterial.emissiveColor = new BABYLON.Color3(0, 0.1, 0.2);
+            
+            planetMesh.material = planetMaterial;
+            babylonStarObjects.push(planetMesh);
+        } else if (body.mass >= 1000) {
+            // 恒星
+            const starSize = body.radius * 2;
+            const starMesh = BABYLON.MeshBuilder.CreateSphere(body.name, {
+                diameter: starSize
+            }, babylonScene);
+            
+            starMesh.position = new BABYLON.Vector3(body.x, body.y, body.z);
+            
+            // 解析颜色
+            let r, g, b;
+            const color = body.color;
+            if (color.startsWith('#')) {
+                const hex = color.slice(1);
+                r = parseInt(hex.slice(0, 2), 16) / 255;
+                g = parseInt(hex.slice(2, 4), 16) / 255;
+                b = parseInt(hex.slice(4, 6), 16) / 255;
+            } else {
+                r = g = b = 1; // 默认白色
+            }
+            
+            const starMaterial = new BABYLON.StandardMaterial(body.name + 'Mat', babylonScene);
+            starMaterial.diffuseColor = new BABYLON.Color3(r, g, b);
+            starMaterial.specularColor = new BABYLON.Color3(1, 1, 1);
+            starMaterial.emissiveColor = new BABYLON.Color3(r, g, b);
+            
+            starMesh.material = starMaterial;
+            babylonStarObjects.push(starMesh);
+        } else if (body.isFragment) {
+            // 碎片
+            const fragmentSize = body.radius * 2;
+            const fragmentMesh = BABYLON.MeshBuilder.CreateSphere(body.name, {
+                diameter: fragmentSize
+            }, babylonScene);
+            
+            fragmentMesh.position = new BABYLON.Vector3(body.x, body.y, body.z);
+            
+            const fragmentMaterial = new BABYLON.StandardMaterial(body.name + 'Mat', babylonScene);
+            fragmentMaterial.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+            fragmentMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+            
+            fragmentMesh.material = fragmentMaterial;
+            babylonStarObjects.push(fragmentMesh);
+        }
+    }
+}
+
+// 为Babylon.js场景创建爆炸粒子系统
+function createBabylonExplosion(x, y, z, color1, color2) {
+    if (!babylonScene) return;
+    
+    // 创建粒子系统
+    const ps = new BABYLON.ParticleSystem("explosion", 2000, babylonScene);
+    
+    // 创建粒子材质
+    const particleMaterial = new BABYLON.StandardMaterial("particleMat", babylonScene);
+    particleMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1);
+    particleMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1);
+    particleMaterial.backFaceCulling = false;
+    
+    // 使用点精灵
+    ps.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/dist/textures/flare.png", babylonScene);
+    
+    // 粒子系统设置
+    ps.emitter = new BABYLON.Vector3(x, y, z);
+    ps.minEmitBox = new BABYLON.Vector3(-10, -10, -10);
+    ps.maxEmitBox = new BABYLON.Vector3(10, 10, 10);
+    
+    // 颜色
+    const r1 = parseInt(color1.slice(1, 3), 16) / 255;
+    const g1 = parseInt(color1.slice(3, 5), 16) / 255;
+    const b1 = parseInt(color1.slice(5, 7), 16) / 255;
+    
+    const r2 = parseInt(color2.slice(1, 3), 16) / 255;
+    const g2 = parseInt(color2.slice(3, 5), 16) / 255;
+    const b2 = parseInt(color2.slice(5, 7), 16) / 255;
+    
+    ps.color1 = new BABYLON.Color4(r1, g1, b1, 1);
+    ps.color2 = new BABYLON.Color4(r2, g2, b2, 0.5);
+    ps.colorDead = new BABYLON.Color4(0, 0, 0, 0);
+    
+    // 大小
+    ps.minSize = 0.5;
+    ps.maxSize = 3;
+    
+    // 生命周期
+    ps.minLifeTime = 0.5;
+    ps.maxLifeTime = 2;
+    
+    // 速度
+    ps.minEmitPower = 10;
+    ps.maxEmitPower = 30;
+    ps.updateSpeed = 0.016;
+    
+    // 方向
+    ps.direction1 = new BABYLON.Vector3(-1, -1, -1);
+    ps.direction2 = new BABYLON.Vector3(1, 1, 1);
+    
+    // 开始发射
+    ps.start();
+    
+    // 3秒后停止并清理
+    setTimeout(() => {
+        ps.stop();
+        setTimeout(() => {
+            ps.dispose();
+            const index = babylonParticleSystems.indexOf(ps);
+            if (index > -1) {
+                babylonParticleSystems.splice(index, 1);
+            }
+        }, 2000);
+    }, 500);
+    
+    babylonParticleSystems.push(ps);
+}
+
+// 为Babylon.js场景创建星云粒子系统
+function createBabylonNebulaParticles(nebula) {
+    if (!babylonScene) return;
+    
+    // 创建粒子系统
+    const ps = new BABYLON.ParticleSystem("nebula", 3000, babylonScene);
+    
+    // 创建粒子材质
+    const particleMaterial = new BABYLON.StandardMaterial("nebulaParticleMat", babylonScene);
+    particleMaterial.emissiveColor = new BABYLON.Color3(1, 1, 1);
+    particleMaterial.diffuseColor = new BABYLON.Color3(1, 1, 1);
+    particleMaterial.backFaceCulling = false;
+    
+    // 使用点精灵
+    ps.particleTexture = new BABYLON.Texture("https://raw.githubusercontent.com/BabylonJS/Babylon.js/master/dist/textures/flare.png", babylonScene);
+    
+    // 粒子系统设置
+    ps.emitter = new BABYLON.Vector3(nebula.x, nebula.y, nebula.z);
+    ps.minEmitBox = new BABYLON.Vector3(-nebula.currentRadius * 0.5, -nebula.currentRadius * 0.5, -nebula.currentRadius * 0.25);
+    ps.maxEmitBox = new BABYLON.Vector3(nebula.currentRadius * 0.5, nebula.currentRadius * 0.5, nebula.currentRadius * 0.25);
+    
+    // 颜色
+    const r1 = parseInt(nebula.color1.slice(1, 3), 16) / 255;
+    const g1 = parseInt(nebula.color1.slice(3, 5), 16) / 255;
+    const b1 = parseInt(nebula.color1.slice(5, 7), 16) / 255;
+    
+    const r2 = parseInt(nebula.color2.slice(1, 3), 16) / 255;
+    const g2 = parseInt(nebula.color2.slice(3, 5), 16) / 255;
+    const b2 = parseInt(nebula.color2.slice(5, 7), 16) / 255;
+    
+    ps.color1 = new BABYLON.Color4(r1, g1, b1, 0.3);
+    ps.color2 = new BABYLON.Color4(r2, g2, b2, 0.1);
+    ps.colorDead = new BABYLON.Color4(0, 0, 0, 0);
+    
+    // 大小
+    ps.minSize = 1;
+    ps.maxSize = 4;
+    
+    // 生命周期
+    ps.minLifeTime = 3;
+    ps.maxLifeTime = 8;
+    
+    // 速度
+    ps.minEmitPower = 2;
+    ps.maxEmitPower = 5;
+    ps.updateSpeed = 0.016;
+    
+    // 方向
+    ps.direction1 = new BABYLON.Vector3(-1, -1, -1);
+    ps.direction2 = new BABYLON.Vector3(1, 1, 1);
+    
+    // 开始发射
+    ps.start();
+    
+    // 10秒后停止并清理
+    setTimeout(() => {
+        ps.stop();
+        setTimeout(() => {
+            ps.dispose();
+            const index = babylonParticleSystems.indexOf(ps);
+            if (index > -1) {
+                babylonParticleSystems.splice(index, 1);
+            }
+        }, 8000);
+    }, 2000);
+    
+    babylonParticleSystems.push(ps);
+}
+
+// 处理Babylon.js相机移动
+function handleBabylonCameraMovement() {
+    if (!babylonCamera) {
+        return;
+    }
+    
+    const moveSpeed = firstPersonMoveSpeed * 0.1;
+    
+    // 获取相机的前向和右向向量
+    const forward = babylonCamera.getDirection(BABYLON.Vector3.Forward());
+    const right = babylonCamera.getDirection(BABYLON.Vector3.Right());
+    
+    // 归一化向量
+    forward.normalize();
+    right.normalize();
+    
+    // W - 向前移动
+    if (keys.w) {
+        babylonCamera.position.addInPlace(forward.scale(moveSpeed));
+    }
+    
+    // S - 向后移动
+    if (keys.s) {
+        babylonCamera.position.subtractInPlace(forward.scale(moveSpeed));
+    }
+    
+    // A - 向左移动
+    if (keys.a) {
+        babylonCamera.position.subtractInPlace(right.scale(moveSpeed));
+    }
+    
+    // D - 向右移动
+    if (keys.d) {
+        babylonCamera.position.addInPlace(right.scale(moveSpeed));
     }
 }
 
@@ -4998,6 +5609,11 @@ function toggleFirstPersonView() {
         // 确保控制面板在第一视角模式下仍然可见
         document.getElementById('controls-container').style.display = 'block';
         
+        // 初始化Babylon.js场景
+        if (!babylonInitialized) {
+            initBabylonScene();
+        }
+        
         // 第一视角场景会在 animate 函数中自动初始化
     } else {
         // 退出第一视角模式
@@ -5034,6 +5650,11 @@ function toggleFirstPersonView() {
         // 隐藏文本标注容器
         if (labelContainer) {
             labelContainer.style.display = 'none';
+        }
+        
+        // 停止Babylon.js引擎
+        if (babylonEngine) {
+            babylonEngine.stopRenderLoop();
         }
     }
 }
