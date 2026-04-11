@@ -13,6 +13,22 @@ document.addEventListener('keydown', function(e) {
             document.body.style.backgroundImage = 'radial-gradient(circle at center, rgba(0, 50, 100, 0.3) 0%, rgba(0, 0, 0, 0.9) 70%)';
         }
     }
+    
+    // 第一视角移动控制
+    const key = e.key.toLowerCase();
+    if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+        keys[key] = true;
+        e.preventDefault(); // 防止页面滚动
+    }
+});
+
+document.addEventListener('keyup', function(e) {
+    // 第一视角移动控制
+    const key = e.key.toLowerCase();
+    if (key === 'w' || key === 'a' || key === 's' || key === 'd') {
+        keys[key] = false;
+        e.preventDefault();
+    }
 });
 
 // 初始加载动画逻辑
@@ -212,6 +228,148 @@ const canvas = document.getElementById('simulationCanvas');
 const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = document.getElementById('simulation-container').clientHeight;
+
+// 离屏Canvas缓存系统
+const offscreenCache = {
+    stars: null, // 恒星缓存
+    nebulas: null, // 星云缓存
+    shockwaves: null, // 冲击波缓存
+    grid: null, // 网格缓存
+    
+    // 初始化所有离屏Canvas
+    init() {
+        this.stars = document.createElement('canvas');
+        this.stars.width = canvas.width;
+        this.stars.height = canvas.height;
+        
+        this.nebulas = document.createElement('canvas');
+        this.nebulas.width = canvas.width;
+        this.nebulas.height = canvas.height;
+        
+        this.shockwaves = document.createElement('canvas');
+        this.shockwaves.width = canvas.width;
+        this.shockwaves.height = canvas.height;
+        
+        this.grid = document.createElement('canvas');
+        this.grid.width = canvas.width;
+        this.grid.height = canvas.height;
+    },
+    
+    // 清除所有缓存
+    clearAll() {
+        if (this.stars) {
+            const ctx = this.stars.getContext('2d');
+            ctx.clearRect(0, 0, this.stars.width, this.stars.height);
+        }
+        if (this.nebulas) {
+            const ctx = this.nebulas.getContext('2d');
+            ctx.clearRect(0, 0, this.nebulas.width, this.nebulas.height);
+        }
+        if (this.shockwaves) {
+            const ctx = this.shockwaves.getContext('2d');
+            ctx.clearRect(0, 0, this.shockwaves.width, this.shockwaves.height);
+        }
+        if (this.grid) {
+            const ctx = this.grid.getContext('2d');
+            ctx.clearRect(0, 0, this.grid.width, this.grid.height);
+        }
+    },
+    
+    // 调整缓存大小
+    resize(width, height) {
+        this.stars.width = width;
+        this.stars.height = height;
+        this.nebulas.width = width;
+        this.nebulas.height = height;
+        this.shockwaves.width = width;
+        this.shockwaves.height = height;
+        this.grid.width = width;
+        this.grid.height = height;
+    }
+};
+
+// 初始化离屏缓存
+offscreenCache.init();
+
+// 计算结果缓存系统
+const calculationCache = {
+    projections: new Map(), // 天体投影缓存
+    distances: new Map(), // 距离计算缓存
+    colors: new Map(), // 颜色解析缓存
+    
+    // 清除所有缓存
+    clearAll() {
+        this.projections.clear();
+        this.distances.clear();
+        this.colors.clear();
+    },
+    
+    // 清除特定天体的缓存
+    clearBodyCache(bodyName) {
+        this.projections.delete(bodyName);
+        // 清除与该天体相关的距离缓存
+        for (let key of this.distances.keys()) {
+            if (key.includes(bodyName)) {
+                this.distances.delete(key);
+            }
+        }
+    }
+};
+
+// 对象池系统
+const objectPool = {
+    // 向量对象池
+    vectors: {
+        pool: [],
+        get() {
+            if (this.pool.length > 0) {
+                return this.pool.pop();
+            }
+            return { x: 0, y: 0, z: 0 };
+        },
+        release(vector) {
+            vector.x = 0;
+            vector.y = 0;
+            vector.z = 0;
+            this.pool.push(vector);
+        }
+    },
+    
+    // 投影对象池
+    projections: {
+        pool: [],
+        get() {
+            if (this.pool.length > 0) {
+                return this.pool.pop();
+            }
+            return { x: 0, y: 0, z: 0, sizeFactor: 1 };
+        },
+        release(proj) {
+            proj.x = 0;
+            proj.y = 0;
+            proj.z = 0;
+            proj.sizeFactor = 1;
+            this.pool.push(proj);
+        }
+    },
+    
+    // 天体数据对象池
+    bodyData: {
+        pool: [],
+        get() {
+            if (this.pool.length > 0) {
+                return this.pool.pop();
+            }
+            return { body: null, projected: null, radius: 0 };
+        },
+        release(data) {
+            data.body = null;
+            data.projected = null;
+            data.radius = 0;
+            this.pool.push(data);
+        }
+    }
+};
 
 // 模拟参数
 let bodies = [];
@@ -2161,7 +2319,20 @@ function updateBodiesPosition() {
     time += 0.01 * speedFactor;
 }
 // 3D到2D投影
-function project3D(x, y, z) {
+function project3D(x, y, z, bodyName = null) {
+    // 生成缓存键（如果提供了天体名称）
+    let cacheKey = null;
+    if (bodyName) {
+        // 缓存键包含天体名称和当前的旋转、缩放、偏移状态
+        cacheKey = `${bodyName}_${x.toFixed(2)}_${y.toFixed(2)}_${z.toFixed(2)}_${rotationX.toFixed(2)}_${rotationY.toFixed(2)}_${scale.toFixed(2)}_${offsetX.toFixed(2)}_${offsetY.toFixed(2)}_${centerBody ? centerBody.name : 'null'}`;
+        
+        // 检查缓存
+        const cached = calculationCache.projections.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+    }
+
     // 如果有聚焦天体，以该天体为中心
     if (centerBody) {
         x -= centerBody.x;
@@ -2190,12 +2361,19 @@ function project3D(x, y, z) {
     // 计算大小变化（基于z深度）
     const sizeFactor = Math.max(0.1, 1 - z2 / 1000);
 
-    return {
+    const result = {
         x: projectedX,
         y: projectedY,
         z: z2,
         sizeFactor: sizeFactor
     };
+
+    // 缓存结果
+    if (cacheKey) {
+        calculationCache.projections.set(cacheKey, result);
+    }
+
+    return result;
 }
 
 // 绘制无限立体网格
@@ -2607,27 +2785,32 @@ function drawBodies() {
         return;
     }
 
-    // 绘制网格
+    // 直接在主画布上绘制，按正确的层级顺序
+    
+    // 1. 绘制网格（最底层）
     drawGrid();
 
-    // 绘制轨迹
+    // 2. 绘制轨迹（网格之上）
     drawTrails();
 
-    // 绘制星云
+    // 3. 绘制星云（轨迹之上）
     drawNebulas();
-    
-    // 绘制冲击波
+
+    // 4. 绘制冲击波（星云之上）
     drawShockwaves();
 
+    // 5. 绘制天体（最上层）
     // 创建一个包含天体和z深度的数组，用于正确排序
-    const bodiesWithDepth = bodies.map(body => {
-        const projected = project3D(body.x, body.y, body.z);
-        return {
-            body: body,
-            projected: projected,
-            radius: body.radius * projected.sizeFactor * scale
-        };
-    });
+    const bodiesWithDepth = [];
+    for (let i = 0; i < bodies.length; i++) {
+        const body = bodies[i];
+        const projected = project3D(body.x, body.y, body.z, body.name);
+        const data = objectPool.bodyData.get();
+        data.body = body;
+        data.projected = projected;
+        data.radius = body.radius * projected.sizeFactor * scale;
+        bodiesWithDepth.push(data);
+    }
 
     // 按z深度排序（从前到后绘制，确保近处物体遮挡远处物体）
     bodiesWithDepth.sort((a, b) => b.projected.z - a.projected.z);
@@ -2657,22 +2840,33 @@ function drawBodies() {
             // 解析颜色并创建发光效果
             const color = body.color;
             let r, g, b;
-            if (color.startsWith('#')) {
-                const hex = color.slice(1);
-                r = parseInt(hex.slice(0, 2), 16);
-                g = parseInt(hex.slice(2, 4), 16);
-                b = parseInt(hex.slice(4, 6), 16);
-            } else if (color.startsWith('rgb(')) {
-                const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-                if (rgbMatch) {
-                    r = parseInt(rgbMatch[1]);
-                    g = parseInt(rgbMatch[2]);
-                    b = parseInt(rgbMatch[3]);
-                } else {
-                    r = g = b = 255;
-                }
+            
+            // 检查颜色缓存
+            if (calculationCache.colors.has(color)) {
+                const cachedColor = calculationCache.colors.get(color);
+                r = cachedColor.r;
+                g = cachedColor.g;
+                b = cachedColor.b;
             } else {
-                r = g = b = 255; // 默认白色
+                if (color.startsWith('#')) {
+                    const hex = color.slice(1);
+                    r = parseInt(hex.slice(0, 2), 16);
+                    g = parseInt(hex.slice(2, 4), 16);
+                    b = parseInt(hex.slice(4, 6), 16);
+                } else if (color.startsWith('rgb(')) {
+                    const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (rgbMatch) {
+                        r = parseInt(rgbMatch[1]);
+                        g = parseInt(rgbMatch[2]);
+                        b = parseInt(rgbMatch[3]);
+                    } else {
+                        r = g = b = 255;
+                    }
+                } else {
+                    r = g = b = 255; // 默认白色
+                }
+                // 缓存颜色
+                calculationCache.colors.set(color, { r, g, b });
             }
             
             // 外层光晕渐变
@@ -2750,6 +2944,11 @@ function drawBodies() {
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
         ctx.fillText(body.name, projected.x, projected.y - radius - 5);
+    }
+    
+    // 释放对象池中的对象
+    for (let data of bodiesWithDepth) {
+        objectPool.bodyData.release(data);
     }
 }
 
@@ -2865,6 +3064,10 @@ let sunLight, sunLight2, sunLight3;
 let atmosphericFog;
 let nebulaObjects = [];
 let explosionObjects = [];
+
+// 第一视角移动控制
+const firstPersonMoveSpeed = 5.0; // 移动速度（加快）
+let keys = { w: false, a: false, s: false, d: false }; // 按键状态
 
 // 初始化第一视角3D场景
 function initFirstPersonScene() {
@@ -4160,6 +4363,39 @@ function renderFirstPersonScene() {
     cameraContainer.rotation.y = firstPersonRotation;
     firstPersonCamera.rotation.x = -verticalAngle;
     
+    // 第一视角移动控制 - 相对于视角网格移动
+    if (isFirstPersonView) {
+        const moveDelta = firstPersonMoveSpeed * 0.01; // 每帧移动距离
+        
+        // 获取相机的前向和右向向量（忽略Y轴，在XZ平面上移动）
+        const forward = new THREE.Vector3(0, 0, -1);
+        forward.applyQuaternion(cameraContainer.quaternion);
+        forward.y = 0; // 忽略Y轴，只在地面移动
+        forward.normalize();
+        
+        const right = new THREE.Vector3(1, 0, 0);
+        right.applyQuaternion(cameraContainer.quaternion);
+        right.y = 0; // 忽略Y轴，只在地面移动
+        right.normalize();
+        
+        // W - 向前移动
+        if (keys.w) {
+            cameraContainer.position.add(forward.clone().multiplyScalar(moveDelta));
+        }
+        // S - 向后移动
+        if (keys.s) {
+            cameraContainer.position.add(forward.clone().multiplyScalar(-moveDelta));
+        }
+        // A - 向左移动
+        if (keys.a) {
+            cameraContainer.position.add(right.clone().multiplyScalar(-moveDelta));
+        }
+        // D - 向右移动
+        if (keys.d) {
+            cameraContainer.position.add(right.clone().multiplyScalar(moveDelta));
+        }
+    }
+    
     // 应用自定义旋转：使天穹和恒星围绕观察者初始视线方向旋转
     // 旋转轴为平行于地面（X轴）
     if (skyDome) {
@@ -4680,13 +4916,14 @@ function drawFirstPersonControls() {
     } else {
         // 普通模式下显示操作说明
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(10, 10, 300, 60);
+        ctx.fillRect(10, 10, 300, 80);
         
         ctx.fillStyle = '#00ccff';
         ctx.font = '14px Arial';
         ctx.textAlign = 'left';
         ctx.fillText('第一视角模式', 20, 30);
-        ctx.fillText('ESC键: 退出第一视角', 20, 50);
+        ctx.fillText('WASD: 移动', 20, 50);
+        ctx.fillText('ESC键: 退出第一视角', 20, 70);
     }
 }
 
@@ -4878,28 +5115,14 @@ function closeCivilizationHistory() {
 // 添加全局变量跟踪恒星信息显示状态
 let isShowingStarInfo = false;
 
-// 主动画循环
-function animate() {
+// 更新逻辑（物理计算、状态更新）
+function update(deltaTime) {
+    // 物理更新
     updateBodiesPosition();
-    drawBodies();
 
-    // 更新UI信息（排除碎片）
-    const realBodyCount = bodies.filter(body => !body.isFragment).length;
-    document.getElementById('body-count').textContent = `天体数量: ${realBodyCount}`;
-    document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
-
-    // 更新行星P表面温度
+    // 状态更新
     const tempResult = calculatePlanetPTemperature();
-    document.getElementById('temperature-info').textContent = `行星P表面温度: ${tempResult.temp} °C`;
     
-    // 更新第一视角按钮状态
-    updateFirstPersonButtonState();
-
-    // 如果正在显示恒星信息，则实时更新（不限制视角模式）
-    if (isShowingStarInfo) {
-        updateStarInfo();
-    }
-
     // 检查文明是否达到里程碑
     checkCivilizationMilestone();
 
@@ -4919,6 +5142,62 @@ function animate() {
             showTemperatureMessage();
         }
     }
+
+    // 清理缓存（定期清理以避免内存泄漏）
+    if (time % 10 === 0) {
+        calculationCache.clearAll();
+    }
+}
+
+// UI更新节流器
+const uiUpdater = {
+    lastUpdateTime: 0,
+    updateInterval: 100, // 每100ms更新一次UI
+    
+    shouldUpdate() {
+        const now = Date.now();
+        if (now - this.lastUpdateTime >= this.updateInterval) {
+            this.lastUpdateTime = now;
+            return true;
+        }
+        return false;
+    }
+};
+
+// 渲染逻辑（所有绘制操作）
+function render() {
+    drawBodies();
+
+    // 节流DOM操作
+    if (uiUpdater.shouldUpdate()) {
+        // 更新UI信息（排除碎片）
+        const realBodyCount = bodies.filter(body => !body.isFragment).length;
+        document.getElementById('body-count').textContent = `天体数量: ${realBodyCount}`;
+        document.getElementById('time-info').textContent = `时间: ${time.toFixed(2)}`;
+
+        // 更新行星P表面温度
+        const tempResult = calculatePlanetPTemperature();
+        document.getElementById('temperature-info').textContent = `行星P表面温度: ${tempResult.temp} °C`;
+        
+        // 更新第一视角按钮状态
+        updateFirstPersonButtonState();
+
+        // 如果正在显示恒星信息，则实时更新（不限制视角模式）
+        if (isShowingStarInfo) {
+            updateStarInfo();
+        }
+    }
+}
+
+// 主动画循环
+let lastTime = 0;
+function animate(currentTime) {
+    // 计算时间差
+    const deltaTime = (currentTime - lastTime) / 16; // 标准化为16ms每帧
+    lastTime = currentTime;
+
+    update(deltaTime);
+    render();
 
     requestAnimationFrame(animate);
 }
@@ -5167,6 +5446,9 @@ window.addEventListener('resize', () => {
     canvas.width = window.innerWidth;
     canvas.height = document.getElementById('simulation-container').clientHeight;
     
+    // 更新离屏Canvas尺寸
+    offscreenCache.resize(canvas.width, canvas.height);
+    
     // 确保第一视角渲染器也正确调整尺寸
     setTimeout(() => {
         adjustFirstPersonRendererForLandscape();
@@ -5178,6 +5460,9 @@ window.addEventListener('orientationchange', () => {
     setTimeout(() => {
         canvas.width = window.innerWidth;
         canvas.height = document.getElementById('simulation-container').clientHeight;
+        
+        // 更新离屏Canvas尺寸
+        offscreenCache.resize(canvas.width, canvas.height);
         
         // 确保第一视角渲染器也正确调整尺寸
         adjustFirstPersonRendererForLandscape();
