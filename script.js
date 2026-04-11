@@ -480,7 +480,6 @@ const quotes = [
     "不要回答！不要回答！不要回答！",
     "消灭人类暴政，世界属于三体！",
     "我们都是阴沟里的虫子，但总还是得有人仰望星空。",
-    "给岁月以文明，给时光以生命。",
     "西方人并不比东方人聪明，但是他们却找对了路。",
     "越透明的东西越神秘，宇宙本身就是透明的，",
     "上帝是个无耻的老赌徒，他抛弃了我们！",
@@ -3503,6 +3502,11 @@ function initBabylonScene() {
             }
             // 更新天体位置
             updateBabylonBodies();
+            // 更新星云（使用原有的投影和旋转逻辑）
+            const planetP = bodies.find(b => b.name === 'p');
+            if (planetP) {
+                updateNebulasInBabylonView(planetP);
+            }
             babylonScene.render();
         }
     });
@@ -5738,6 +5742,268 @@ function createBabylonNebulaParticles(nebula) {
     cleanupPs(ringPs, 5000, 20000);
     
     babylonParticleSystems.push(corePs, outerPs, ringPs);
+}
+
+// Babylon.js星云对象存储 - 用Map存储，避免每帧重新创建
+let babylonNebulaMeshMap = new Map();
+let lastSkyRotation = 0;
+let lastNebulaCount = 0;
+
+// 使用Babylon.js更新星云（保持原有的投影和旋转逻辑）
+function updateNebulasInBabylonView(planetP) {
+    if (!babylonInitialized || !babylonScene) return;
+    
+    // 检查是否需要完全重建星云
+    const skyRotationChanged = Math.abs(skyRotation - lastSkyRotation) > 0.01;
+    const nebulaCountChanged = nebulas.length !== lastNebulaCount;
+    
+    // 观察者位于行星P的位置
+    const observerX = planetP.x;
+    const observerY = planetP.y;
+    const observerZ = planetP.z;
+    
+    // 追踪哪些星云还存在
+    const existingNebulaIds = new Set();
+    
+    for (let nebula of nebulas) {
+        existingNebulaIds.add(nebula.id);
+        
+        // 计算星云相对于观察者的位置
+        const dx = nebula.x - observerX;
+        const dy = nebula.y - observerY;
+        const dz = nebula.z - observerZ;
+        
+        let x, y, z, nebulaSize;
+        
+        // 所有星云都投影到天球上 - 保持原有逻辑
+        const latitude = Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+        let longitude = Math.atan2(dx, dz);
+        
+        while (longitude > Math.PI) longitude -= 2 * Math.PI;
+        while (longitude < -Math.PI) longitude += 2 * Math.PI;
+        
+        const skyRadius = 480;
+        x = skyRadius * Math.cos(latitude) * Math.sin(longitude);
+        y = skyRadius * Math.sin(latitude);
+        z = skyRadius * Math.cos(latitude) * Math.cos(longitude);
+        
+        // 应用天球自转（绕X轴旋转skyRotation角度）- 保持原有逻辑
+        const cos = Math.cos(skyRotation);
+        const sin = Math.sin(skyRotation);
+        const yRotated = y * cos - z * sin;
+        const zRotated = y * sin + z * cos;
+        y = yRotated;
+        z = zRotated;
+        
+        nebulaSize = nebula.currentRadius * 0.3;
+        
+        // 检查是否需要更新或创建星云
+        let nebulaObj = babylonNebulaMeshMap.get(nebula.id);
+        
+        if (!nebulaObj || skyRotationChanged || nebulaCountChanged) {
+            // 解析星云颜色
+            let r1, g1, b1;
+            if (nebula.color1.startsWith('#')) {
+                const hex = nebula.color1.slice(1);
+                r1 = parseInt(hex.slice(0, 2), 16) / 255;
+                g1 = parseInt(hex.slice(2, 4), 16) / 255;
+                b1 = parseInt(hex.slice(4, 6), 16) / 255;
+            } else {
+                r1 = g1 = b1 = 0.8;
+            }
+            
+            let r2, g2, b2;
+            if (nebula.color2.startsWith('#')) {
+                const hex = nebula.color2.slice(1);
+                r2 = parseInt(hex.slice(0, 2), 16) / 255;
+                g2 = parseInt(hex.slice(2, 4), 16) / 255;
+                b2 = parseInt(hex.slice(4, 6), 16) / 255;
+            } else {
+                r2 = g2 = b2 = 0.6;
+            }
+            
+            const tempFactor = Math.max(0.5, Math.min(1, nebula.temperature / 10000));
+            
+            // 清理旧的星云对象
+            if (nebulaObj && nebulaObj.group) {
+                nebulaObj.group.dispose();
+            }
+            
+            // 使用Babylon.js高级功能创建星云
+            const nebulaGroup = createBabylonNebulaShape(
+                x, y, z, nebulaSize, 
+                r1, g1, b1, r2, g2, b2, 
+                tempFactor, nebula
+            );
+            
+            nebulaObj = {
+                group: nebulaGroup,
+                nebula: nebula,
+                lastX: x,
+                lastY: y,
+                lastZ: z
+            };
+            
+            babylonNebulaMeshMap.set(nebula.id, nebulaObj);
+        } else {
+            // 只更新位置
+            if (nebulaObj.group) {
+                nebulaObj.group.position = new BABYLON.Vector3(x, y, z);
+            }
+        }
+    }
+    
+    // 清理消失的星云
+    for (let [id, nebulaObj] of babylonNebulaMeshMap) {
+        if (!existingNebulaIds.has(id)) {
+            if (nebulaObj.group) {
+                nebulaObj.group.dispose();
+            }
+            babylonNebulaMeshMap.delete(id);
+        }
+    }
+    
+    lastSkyRotation = skyRotation;
+    lastNebulaCount = nebulas.length;
+}
+
+// 使用Babylon.js高级功能创建真实酷炫的星云形状
+function createBabylonNebulaShape(x, y, z, size, r1, g1, b1, r2, g2, b2, tempFactor, nebula) {
+    const group = new BABYLON.TransformNode("nebulaGroup", babylonScene);
+    group.position = new BABYLON.Vector3(x, y, z);
+    
+    // 多层星云结构 - 减少层数让形状更平滑
+    const layers = 4;
+    for (let layer = 0; layer < layers; layer++) {
+        const layerScale = 0.5 + (layer / layers) * 0.8;
+        const layerSize = size * layerScale;
+        const layerAlpha = 1.0 - (layer / layers) * 0.5;
+        
+        // 创建不规则球体 - 减少分段让形状更平滑
+        const segments = 24;
+        const rings = 16;
+        const sphere = BABYLON.MeshBuilder.CreateSphere(`nebulaLayer${layer}`, {
+            diameter: layerSize * 2,
+            segments: segments,
+            diameterY: layerSize * 2 * 1.8 // 更扁的椭圆形状，更像真实星云
+        }, babylonScene);
+        
+        // 应用不规则形状 - 更平滑的噪声
+        const positions = sphere.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+        
+        for (let i = 0; i < positions.length; i += 3) {
+            const px = positions[i];
+            const py = positions[i + 1];
+            const pz = positions[i + 2];
+            
+            const length = Math.sqrt(px * px + py * py + pz * pz);
+            if (length > 0) {
+                const nx = px / length;
+                const ny = py / length;
+                const nz = pz / length;
+                
+                // 使用更少、更平滑的噪声生成星云形状
+                const seed = nebula.randomSeed + layer * 150;
+                const phi = Math.acos(ny);
+                const theta = Math.atan2(nx, nz);
+                
+                // 极简化噪声 - 大幅减少破碎感，特别是两级
+                // 只保留低频、低振幅的噪声
+                const noise1 = Math.sin(theta * 1.5 + seed * 0.03) * Math.cos(phi * 1.5) * 0.08;
+                const noise2 = Math.cos(theta * 2 + seed * 0.05) * Math.sin(phi * 1.5) * 0.05;
+                
+                // 组合噪声 - 非常平滑
+                const noiseVal = noise1 + noise2;
+                
+                // 两级平滑处理 - 在两级（phi接近0或π）时，让形状更平滑
+                const poleSmooth = Math.pow(Math.sin(phi), 3); // 更强烈的平滑函数
+                const smoothedNoise = noiseVal * poleSmooth;
+                
+                // 更接近球体的基础形状
+                let effectiveRadius = 0.98 + smoothedNoise;
+                
+                // 更真实的星云边缘形状 - 两级更薄，赤道更厚
+                const nebulaShape = Math.pow(Math.sin(phi), 0.6); // 让两级更薄，形状更像真实星云
+                effectiveRadius *= nebulaShape;
+                
+                // 应用变形
+                const finalLength = (layerSize * effectiveRadius);
+                positions[i] = nx * finalLength;
+                positions[i + 1] = ny * finalLength * 1.8;
+                positions[i + 2] = nz * finalLength;
+            }
+        }
+        
+        sphere.updateVerticesData(BABYLON.VertexBuffer.PositionKind, positions);
+        sphere.computeNormals();
+        
+        // 创建高级材质 - 使用NodeMaterial或PBR材质
+        const nebulaMaterial = new BABYLON.PBRMaterial(`nebulaMat${layer}`, babylonScene);
+        nebulaMaterial.albedoColor = new BABYLON.Color3(
+            (r1 + r2) / 2,
+            (g1 + g2) / 2,
+            (b1 + b2) / 2
+        );
+        nebulaMaterial.emissiveColor = new BABYLON.Color3(
+            r1 * tempFactor,
+            g1 * tempFactor,
+            b1 * tempFactor
+        );
+        nebulaMaterial.roughness = 1.0;
+        nebulaMaterial.metallic = 0.0;
+        nebulaMaterial.alpha = layerAlpha * 0.8;
+        nebulaMaterial.backFaceCulling = false;
+        nebulaMaterial.twoSidedLighting = true;
+        
+        sphere.material = nebulaMaterial;
+        sphere.parent = group;
+        sphere.renderingGroupId = layer;
+        
+        // 添加发光效果 - 使用点光源模拟
+        if (layer === 0) {
+            const glowLight = new BABYLON.PointLight(`nebulaGlow${layer}`, 
+                new BABYLON.Vector3(0, 0, 0), babylonScene);
+            glowLight.diffuse = new BABYLON.Color3(r1 * tempFactor, g1 * tempFactor, b1 * tempFactor);
+            glowLight.intensity = 50 * tempFactor;
+            glowLight.range = layerSize * 4;
+            glowLight.parent = group;
+        }
+    }
+    
+    // 添加星云环
+    const ringMesh = BABYLON.MeshBuilder.CreateTorus("nebulaRing", {
+        diameter: size * 2.2,
+        thickness: size * 0.15,
+        tessellation: 64
+    }, babylonScene);
+    
+    const ringMaterial = new BABYLON.PBRMaterial("nebulaRingMat", babylonScene);
+    ringMaterial.albedoColor = new BABYLON.Color3(r1 * 0.8, g1 * 0.8, b1 * 0.8);
+    ringMaterial.emissiveColor = new BABYLON.Color3(r2 * 0.6, g2 * 0.6, b2 * 0.6);
+    ringMaterial.alpha = 0.6;
+    ringMaterial.roughness = 0.8;
+    ringMaterial.metallic = 0.1;
+    ringMaterial.backFaceCulling = false;
+    
+    ringMesh.material = ringMaterial;
+    ringMesh.rotation.x = Math.PI / 2.5;
+    ringMesh.parent = group;
+    ringMesh.renderingGroupId = layers;
+    
+    // 添加旋转动画
+    ringMesh.rotation.z = 0;
+    let rotationPhase = 0;
+    const ringAnimation = new BABYLON.Animation("ringRotation", "rotation.z", 30, 
+        BABYLON.Animation.ANIMATIONTYPE_FLOAT, BABYLON.Animation.ANIMATIONLOOPMODE_CYCLE);
+    
+    const ringKeys = [];
+    ringKeys.push({ frame: 0, value: 0 });
+    ringKeys.push({ frame: 1000, value: Math.PI * 2 });
+    ringAnimation.setKeys(ringKeys);
+    ringMesh.animations.push(ringAnimation);
+    babylonScene.beginAnimation(ringMesh, 0, 1000, true);
+    
+    return group;
 }
 
 // 处理Babylon.js相机移动
