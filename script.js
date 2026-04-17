@@ -392,6 +392,11 @@ let currentTotalBrightness = 0; // 当前总亮度值，用于地面和天空颜
 let previousStarHeights = {}; // 存储上一次的恒星高度角，用于判断变化趋势
 let verticalAngle = 0; // 垂直视角角度
 
+// 观察者在内部行星球壳上的位置（经纬度）
+let observerLatitude = 0; // 纬度：-π/2 到 π/2
+let observerLongitude = 0; // 经度：-π 到 π
+const innerSphereRadius = 100; // 内部行星球壳半径
+
 // 文明历史相关变量
 let civilizationId = 1;
 let civilizationStartTime = 0;
@@ -3662,33 +3667,79 @@ console.log('文本标注容器初始化成功');
     cameraContainer = new THREE.Object3D();
     firstPersonScene.add(cameraContainer);
     
-    // 相机初始位置（提高视角高度）
-    firstPersonCamera.position.y = 10.0;
+    // 根据经纬度计算观察者在内部球壳上的位置和朝向
+    function updateObserverPositionOnSphere() {
+        const lat = observerLatitude;
+        const lon = observerLongitude;
+        cameraContainer.position.x = innerSphereRadius * Math.cos(lat) * Math.sin(lon);
+        cameraContainer.position.y = innerSphereRadius * Math.sin(lat);
+        cameraContainer.position.z = innerSphereRadius * Math.cos(lat) * Math.cos(lon);
+        
+        // 计算正确的朝向，确保地平线始终平行于玩家视角
+        
+        // 1. 从球心指向观察者的方向（表面法线方向）
+        const normalDirection = new THREE.Vector3(
+            cameraContainer.position.x,
+            cameraContainer.position.y,
+            cameraContainer.position.z
+        ).normalize();
+        
+        // 2. 东方向（在球壳表面上，增加经度的方向）
+        const eastDirection = new THREE.Vector3(
+            Math.cos(lon),
+            0,
+            -Math.sin(lon)
+        ).normalize();
+        
+        // 3. 北方向（在球壳表面上，增加纬度的方向）
+        // 通过叉乘计算：北 = 法线 × 东
+        const northDirection = new THREE.Vector3();
+        northDirection.crossVectors(normalDirection, eastDirection).normalize();
+        
+        // 设置相机的up向量为法线方向（确保地平线水平）
+        cameraContainer.up = normalDirection.clone();
+        
+        // 计算观察点：向前看（北方向）
+        const lookAtPoint = cameraContainer.position.clone().add(northDirection);
+        
+        // 让相机看向观察点
+        cameraContainer.lookAt(lookAtPoint);
+    }
+    
+    // 初始化观察者位置
+    updateObserverPositionOnSphere();
+    
+    // 相机初始位置 - 在球壳表面稍微抬高一点
+    firstPersonCamera.position.y = 0.5;
     cameraContainer.add(firstPersonCamera);
     
-    // 创建简单地面（确保能正常渲染）
-    const gridSize = 1000;
-    const gridDivisions = 100;
-    const groundGeometry = new THREE.PlaneGeometry(gridSize, gridSize, gridDivisions, gridDivisions);
-    
-    const groundMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x808080,
-        roughness: 0.9,
-        metalness: 0.1,
-        side: THREE.DoubleSide,
-        wireframe: false
+    // 创建内部行星表面球壳
+    const innerSphereGeometry = new THREE.SphereGeometry(innerSphereRadius, 64, 64);
+    const innerSphereMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x404040, // 更深的灰色
+        roughness: 1.0,
+        metalness: 0.0,
+        side: THREE.BackSide,
+        wireframe: false,
+        transparent: false // 不透明
     });
+    const innerSphere = new THREE.Mesh(innerSphereGeometry, innerSphereMaterial);
+    innerSphere.name = 'innerSphere';
+    firstPersonScene.add(innerSphere);
     
-    ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0;
-    ground.renderOrder = 1;
-    firstPersonScene.add(ground);
-    
-    // 添加网格辅助线
-    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x404040, 0x404040);
-    gridHelper.position.y = 0.01;
-    firstPersonScene.add(gridHelper);
+    // 创建经纬度网 - 使用更简单的方法
+    // 使用SphereGeometry的wireframe来创建经纬网
+    const gridGeometry = new THREE.SphereGeometry(innerSphereRadius * 1.001, 24, 12); // 稍微大一点，在球壳表面
+    const gridMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.6,
+        side: THREE.BackSide
+    });
+    const gridSphere = new THREE.Mesh(gridGeometry, gridMaterial);
+    gridSphere.name = 'gridSphere';
+    firstPersonScene.add(gridSphere);
     
     // 创建天穹（球体）
     const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
@@ -3914,16 +3965,9 @@ function updateStarsInFirstPersonView(planetP) {
         
         // 5. 将新的坐标系投影到天穹上
         // 纬度相对于地面固定，不受观察者视角影响
-        // 注意：现在所有恒星都会被投影，即使在地面以下或被完全遮挡
         
         // 将经度和纬度转换为3D空间中的位置
         const skyRadius = 490; // 稍微小于天穹半径
-        
-        // 地面遮挡检测：考虑恒星大小，让恒星可以部分显示直到完全沉入地平线
-        // 计算恒星在观察者坐标系中的实际高度（使用相对于地面的纬度）
-        const starHeight = skyRadius * Math.sin(latitude);
-        
-        // 计算恒星大小 - 基础大小根据距离缩放，距离越近越大，距离越远越小
         
         // 计算太阳在天穹上的基础位置向量
         let x = skyRadius * Math.cos(latitude) * Math.sin(longitude);
@@ -3945,6 +3989,29 @@ function updateStarsInFirstPersonView(planetP) {
         // 更新位置向量
         y = yRotated;
         z = zRotated;
+        
+        // 检查恒星是否被内部球壳遮挡
+        // 计算观察者在球壳上的位置向量
+        const observerPos = new THREE.Vector3(
+            innerSphereRadius * Math.cos(observerLatitude) * Math.sin(observerLongitude),
+            innerSphereRadius * Math.sin(observerLatitude),
+            innerSphereRadius * Math.cos(observerLatitude) * Math.cos(observerLongitude)
+        ).normalize();
+        
+        // 计算恒星在天穹上的位置向量
+        const starPos = new THREE.Vector3(x, y, z).normalize();
+        
+        // 计算观察者位置和恒星位置的点积
+        // 如果点积为正，说明恒星在观察者可见的半球上
+        const dotProduct = observerPos.dot(starPos);
+        
+        // 如果点积小于0，说明恒星在球壳的另一边，被遮挡了
+        const isOccluded = dotProduct < 0;
+        
+        if (isOccluded) {
+            // 恒星被遮挡，跳过创建
+            return;
+        }
         
         // 创建恒星对象 - 根据距离动态调整大小，增强远距离变小效果
         // 基础大小根据距离缩放，距离越近越大，距离越远越小
@@ -4020,15 +4087,11 @@ function updateStarsInFirstPersonView(planetP) {
                 },
                 vertexShader: `
                     varying vec2 vUv;
-                    varying float vGroundClip;
                     
                     void main() {
                         vUv = uv;
                         
-                        // 计算顶点是否在地面以下
-                        // 假设地面在y=0位置
-                        vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                        vGroundClip = max(0.0, worldPos.y + 0.5); // 添加小偏移以平滑过渡
+
                         
                         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                     }
@@ -4037,7 +4100,6 @@ function updateStarsInFirstPersonView(planetP) {
                     uniform vec3 color;
                     uniform float maxOpacity;
                     varying vec2 vUv;
-                    varying float vGroundClip;
                     
                     void main() {
                         // 计算从中心到边缘的距离（0-1）
@@ -4048,8 +4110,7 @@ function updateStarsInFirstPersonView(planetP) {
                         // 减小衰减因子，使光晕更加明显
                         float opacity = maxOpacity * exp(-distance * 2.0);
                         
-                        // 添加地面裁剪，确保光晕不会出现在地面以下
-                        opacity *= smoothstep(0.0, 1.0, vGroundClip);
+
                         
                         gl_FragColor = vec4(color, opacity);
                     }
@@ -4061,9 +4122,8 @@ function updateStarsInFirstPersonView(planetP) {
             });
         };
         
-        // 检查恒星是否在地面以上，如果在地面以下则不添加光晕
-        if (y > -starSize) { // 确保恒星大部分在地面以上才显示光晕
-            if (isFlyingStar) {
+        // 添加光晕（不再检查地面）
+        if (isFlyingStar) {
                 // 飞星有明显的光晕
                 const innerGlowRadius = starSize * 2;
                 const innerGlowGeometry = new THREE.SphereGeometry(innerGlowRadius, 32, 32);
@@ -4103,7 +4163,6 @@ function updateStarsInFirstPersonView(planetP) {
                 firstPersonScene.add(outerGlowMesh);
                 glowMeshes.push(outerGlowMesh);
             }
-        }
         
         firstPersonScene.add(starMesh);
         
@@ -4204,7 +4263,7 @@ function updateStarsInFirstPersonView(planetP) {
     // 替换为新的恒星对象数组
     starObjects = newStarObjects;
     
-    // 更新天空颜色根据太阳距离
+    // 更新天空颜色根据太阳距离（原有配色方法）
     updateSkyDomeColor(stars, planetP);
     
     // 更新地面亮度
@@ -4367,14 +4426,11 @@ function updateNebulasInFirstPersonView(planetP) {
                     layerOffsetY: { value: layerOffset.y }
                 },
                 vertexShader: `
-                    varying float vGroundClip;
                     varying vec3 vPosition;
                     
                     void main() {
                         vPosition = position;
-                        vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                        vGroundClip = max(0.0, worldPos.y + 0.5);
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        gl_Position = projectionMatrix * modelMatrix * vec4(position, 1.0);
                     }
                 `,
                 fragmentShader: `
@@ -4383,7 +4439,6 @@ function updateNebulasInFirstPersonView(planetP) {
                     uniform float temperature;
                     uniform float layerAlpha;
                     uniform float layerSize;
-                    varying float vGroundClip;
                     varying vec3 vPosition;
                     
                     void main() {
@@ -4402,7 +4457,6 @@ function updateNebulasInFirstPersonView(planetP) {
                         vec3 color = mix(mixedColor1, mixedColor2, smoothstep(0.2, 0.8, distanceToCenter));
                         
                         float alpha = coreFactor * temperature * layerAlpha * 0.9;
-                        alpha *= smoothstep(0.0, 1.0, vGroundClip);
                         
                         vec3 brightColor = color * (1.0 + coreFactor * 0.3);
                         
@@ -4521,13 +4575,10 @@ function updateShockwavesInFirstPersonView(planetP) {
             },
             vertexShader: `
                 varying vec3 vPosition;
-                varying float vGroundClip;
                 
                 void main() {
                     vPosition = position;
-                    vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                    vGroundClip = max(0.0, worldPos.y + 0.5);
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    gl_Position = projectionMatrix * modelMatrix * vec4(position, 1.0);
                 }
             `,
             fragmentShader: `
@@ -4536,7 +4587,6 @@ function updateShockwavesInFirstPersonView(planetP) {
                 uniform float innerSize;
                 uniform float alpha;
                 varying vec3 vPosition;
-                varying float vGroundClip;
                 
                 void main() {
                     float distanceToCenter = length(vPosition);
@@ -4550,7 +4600,6 @@ function updateShockwavesInFirstPersonView(planetP) {
                     
                     vec3 color = mix(color2, color1, shellFactor);
                     float finalAlpha = shellFactor * alpha;
-                    finalAlpha *= smoothstep(0.0, 1.0, vGroundClip);
                     
                     gl_FragColor = vec4(color, finalAlpha);
                 }
@@ -4785,39 +4834,28 @@ function calculateTotalBrightness() {
 
 // 更新地面亮度
 function updateGroundBrightness() {
-    if (!ground) return;
+    // 查找内部球壳
+    const innerSphere = firstPersonScene.children.find(child => child.name === 'innerSphere');
+    if (!innerSphere) return;
     
-    // 根据总亮度计算地面颜色（深灰色到浅灰色）
+    // 根据总亮度计算地面颜色（原有配色方法）
     const normalizedBrightness = Math.max(0, Math.min(1, currentTotalBrightness / 60)); // 0-60映射到0-1
     
     // 深灰色（最暗）
-    const darkR = 64, darkG = 64, darkB = 64; // #404040
-    // 浅灰色（最亮）
-    const brightR = 200, brightG = 200, brightB = 200; // #C8C8C8
+    const baseR = 64, baseG = 64, baseB = 64; // 深灰色 #404040
+    // 明亮的浅灰色（最亮）
+    const brightR = 200, brightG = 200, brightB = 200;
     
     // 使用线性插值计算最终颜色
-    const finalR = darkR + (brightR - darkR) * normalizedBrightness;
-    const finalG = darkG + (brightG - darkG) * normalizedBrightness;
-    const finalB = darkB + (brightB - darkB) * normalizedBrightness;
+    const finalR = Math.floor(baseR + (brightR - baseR) * normalizedBrightness);
+    const finalG = Math.floor(baseG + (brightG - baseG) * normalizedBrightness);
+    const finalB = Math.floor(baseB + (brightB - baseB) * normalizedBrightness);
     
     const groundColor = new THREE.Color(finalR/255, finalG/255, finalB/255);
-    ground.material.color = groundColor;
-    
-    // 更新格子线框颜色 - 始终比地面颜色亮
-    const gridHelper = firstPersonScene.children.find(child => child instanceof THREE.GridHelper);
-    if (gridHelper) {
-        // 基于地面颜色计算网格线颜色，始终比地面亮
-        const gridColor = groundColor.clone();
-        gridColor.multiplyScalar(1.5); // 将地面颜色亮度增加50%
-        // 确保颜色值在有效范围内
-        gridColor.r = Math.min(1, gridColor.r);
-        gridColor.g = Math.min(1, gridColor.g);
-        gridColor.b = Math.min(1, gridColor.b);
-        gridHelper.material.color = gridColor;
-    }
+    innerSphere.material.color = groundColor;
 }
 
-// 更新天空颜色根据太阳距离
+// 更新天空颜色根据太阳距离（原有配色方法）
 function updateSkyDomeColor(stars, planetP) {
     if (!skyDome) return;
     
@@ -4874,42 +4912,155 @@ function renderFirstPersonScene() {
         }
     }
     
-    // 更新相机旋转 - 只应用用户视角控制
-    cameraContainer.rotation.y = firstPersonRotation;
-    firstPersonCamera.rotation.x = -verticalAngle;
-    
-    // 第一视角移动控制 - 相对于视角网格移动
+    // 第一视角移动控制 - 在内部球壳上移动
     if (isFirstPersonView) {
-        const moveDelta = firstPersonMoveSpeed * 0.01; // 每帧移动距离
+        const moveDelta = firstPersonMoveSpeed * 0.003; // 每帧移动角度
         
-        // 获取相机的前向和右向向量（忽略Y轴，在XZ平面上移动）
-        const forward = new THREE.Vector3(0, 0, -1);
-        forward.applyQuaternion(cameraContainer.quaternion);
-        forward.y = 0; // 忽略Y轴，只在地面移动
-        forward.normalize();
-        
-        const right = new THREE.Vector3(1, 0, 0);
-        right.applyQuaternion(cameraContainer.quaternion);
-        right.y = 0; // 忽略Y轴，只在地面移动
-        right.normalize();
+        // 根据面朝方向计算移动
+        let forwardMovement = 0;
+        let rightMovement = 0;
         
         // W - 向前移动
         if (keys.w) {
-            cameraContainer.position.add(forward.clone().multiplyScalar(moveDelta));
+            forwardMovement += moveDelta;
         }
         // S - 向后移动
         if (keys.s) {
-            cameraContainer.position.add(forward.clone().multiplyScalar(-moveDelta));
+            forwardMovement -= moveDelta;
         }
         // A - 向左移动
         if (keys.a) {
-            cameraContainer.position.add(right.clone().multiplyScalar(-moveDelta));
+            rightMovement -= moveDelta;
         }
         // D - 向右移动
         if (keys.d) {
-            cameraContainer.position.add(right.clone().multiplyScalar(moveDelta));
+            rightMovement += moveDelta;
+        }
+        
+        // 只有在有移动时才更新位置
+        if (forwardMovement !== 0 || rightMovement !== 0) {
+            // 当前经纬度
+            const lat = observerLatitude;
+            const lon = observerLongitude;
+            
+            // 计算当前位置的3D向量
+            const currentPos = new THREE.Vector3(
+                Math.cos(lat) * Math.sin(lon),
+                Math.sin(lat),
+                Math.cos(lat) * Math.cos(lon)
+            ).normalize();
+            
+            // 计算东方向和北方向
+            const normal = currentPos.clone();
+            const east = new THREE.Vector3(Math.cos(lon), 0, -Math.sin(lon)).normalize();
+            const north = new THREE.Vector3();
+            north.crossVectors(normal, east).normalize();
+            
+            // 根据面朝方向（firstPersonRotation）旋转移动方向
+            const cos = Math.cos(firstPersonRotation);
+            const sin = Math.sin(firstPersonRotation);
+            
+            // 计算旋转后的移动方向
+            const rotatedNorth = new THREE.Vector3();
+            rotatedNorth.x = north.x * cos - east.x * sin;
+            rotatedNorth.y = north.y * cos - east.y * sin;
+            rotatedNorth.z = north.z * cos - east.z * sin;
+            
+            const rotatedEast = new THREE.Vector3();
+            rotatedEast.x = north.x * sin + east.x * cos;
+            rotatedEast.y = north.y * sin + east.y * cos;
+            rotatedEast.z = north.z * sin + east.z * cos;
+            
+            // 计算移动向量
+            const moveVector = new THREE.Vector3();
+            moveVector.addScaledVector(rotatedNorth, forwardMovement);
+            moveVector.addScaledVector(rotatedEast, rightMovement);
+            
+            // 在球面上移动 - 使用球面几何
+            // 将当前位置和移动向量结合，得到新的位置
+            const newPos = currentPos.clone().add(moveVector).normalize();
+            
+            // 将新位置转换回经纬度
+            const newLat = Math.asin(Math.max(-1, Math.min(1, newPos.y)));
+            const newLon = Math.atan2(newPos.x, newPos.z);
+            
+            // 更新经纬度
+            observerLatitude = newLat;
+            observerLongitude = newLon;
+            
+            // 限制纬度范围在 -π/2 到 π/2 之间
+            observerLatitude = Math.max(-Math.PI / 2 + 0.001, Math.min(Math.PI / 2 - 0.001, observerLatitude));
+            
+            // 经度可以自由循环
+            while (observerLongitude > Math.PI) observerLongitude -= Math.PI * 2;
+            while (observerLongitude < -Math.PI) observerLongitude += Math.PI * 2;
         }
     }
+    
+    // 根据当前经纬度更新观察者位置和朝向
+    const lat = observerLatitude;
+    const lon = observerLongitude;
+    
+    // 更新位置
+    cameraContainer.position.x = innerSphereRadius * Math.cos(lat) * Math.sin(lon);
+    cameraContainer.position.y = innerSphereRadius * Math.sin(lat);
+    cameraContainer.position.z = innerSphereRadius * Math.cos(lat) * Math.cos(lon);
+    
+    // 计算正确的朝向，确保地平线始终平行于玩家视角
+    
+    // 1. 从球心指向观察者的方向（表面法线方向）
+    const normalDirection = new THREE.Vector3(
+        cameraContainer.position.x,
+        cameraContainer.position.y,
+        cameraContainer.position.z
+    ).normalize();
+    
+    // 2. 东方向（在球壳表面上，增加经度的方向）
+    const eastDirection = new THREE.Vector3(
+        Math.cos(lon),
+        0,
+        -Math.sin(lon)
+    ).normalize();
+    
+    // 3. 北方向（在球壳表面上，增加纬度的方向）
+    // 通过叉乘计算：北 = 法线 × 东
+    const northDirection = new THREE.Vector3();
+    northDirection.crossVectors(normalDirection, eastDirection).normalize();
+    
+    // 4. 构建相机的正交基向量
+    // - up向量：指向法线方向（垂直于表面，向上）
+    // - right向量：东方向（平行于地平线，向右）
+    // - forward向量：北方向（平行于地平线，向前）
+    
+    // 应用用户的水平旋转（firstPersonRotation）
+    // 绕法线方向旋转东和北方向
+    const cos = Math.cos(firstPersonRotation);
+    const sin = Math.sin(firstPersonRotation);
+    
+    const rotatedEast = new THREE.Vector3();
+    rotatedEast.x = eastDirection.x * cos + northDirection.x * sin;
+    rotatedEast.y = eastDirection.y * cos + northDirection.y * sin;
+    rotatedEast.z = eastDirection.z * cos + northDirection.z * sin;
+    rotatedEast.normalize();
+    
+    const rotatedNorth = new THREE.Vector3();
+    rotatedNorth.x = -eastDirection.x * sin + northDirection.x * cos;
+    rotatedNorth.y = -eastDirection.y * sin + northDirection.y * cos;
+    rotatedNorth.z = -eastDirection.z * sin + northDirection.z * cos;
+    rotatedNorth.normalize();
+    
+    // 设置相机的up向量为法线方向（确保地平线水平）
+    cameraContainer.up = normalDirection.clone();
+    
+    // 计算观察点：向前看（北方向）
+    const lookAtPoint = cameraContainer.position.clone().add(rotatedNorth);
+    
+    // 让相机看向观察点
+    cameraContainer.lookAt(lookAtPoint);
+    
+    // 应用用户的垂直视角旋转（verticalAngle）
+    // 通过旋转相机自身来实现
+    firstPersonCamera.rotation.x = -verticalAngle;
     
     // 应用自定义旋转：使天穹和恒星围绕观察者初始视线方向旋转
     // 旋转轴为平行于地面（X轴）
@@ -5371,10 +5522,8 @@ function drawStarsOnSkyDome(planetP) {
         // 距离因子：越近越亮
         const distanceFactor = Math.max(0.1, 1 - distance * 0.005);
         
-        // 纬度因子：考虑地平线遮挡效果，越接近地平线越暗淡
-        const latitudeFactor = Math.max(0.1, adjustedLatitude / (Math.PI / 2));
-        
-        const brightness = distanceFactor * latitudeFactor;
+        // 不再考虑地平线遮挡效果
+        const brightness = distanceFactor;
         
         totalBrightness += brightness;
         
@@ -5427,16 +5576,22 @@ function drawStarsOnSkyDome(planetP) {
 // 绘制第一视角控制提示
 function drawFirstPersonControls() {
     if (isFirstPersonView) {
-        // 第一视角模式下显示操作说明
+        // 第一视角模式下显示操作说明和经纬度
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(10, 10, 300, 80);
+        ctx.fillRect(10, 10, 320, 110);
+        
+        // 转换经纬度为度数
+        const latDegrees = (observerLatitude * 180 / Math.PI).toFixed(1);
+        const lonDegrees = (observerLongitude * 180 / Math.PI).toFixed(1);
         
         ctx.fillStyle = 'white';
         ctx.font = '14px Arial';
         ctx.textAlign = 'left';
         ctx.fillText('第一视角模式', 20, 30);
-        ctx.fillText('WASD: 移动', 20, 50);
-        ctx.fillText('ESC键: 退出第一视角', 20, 70);
+        ctx.fillText(`纬度: ${latDegrees}°`, 20, 50);
+        ctx.fillText(`经度: ${lonDegrees}°`, 20, 70);
+        ctx.fillText('WASD: 在球面上移动', 20, 90);
+        ctx.fillText('ESC键: 退出第一视角', 20, 110);
     } else {
         // 普通模式下显示操作说明
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -6128,6 +6283,10 @@ function toggleFirstPersonView() {
         // 进入第一视角模式 - 先重置场景以确保干净的初始化
         resetFirstPersonScene();
         
+        // 随机初始化观察者在内部球壳上的经纬度
+        observerLatitude = (Math.random() - 0.5) * Math.PI; // -π/2 到 π/2
+        observerLongitude = (Math.random() - 0.5) * Math.PI * 2; // -π 到 π
+        
         centerBody = null; // 取消任何聚焦
         document.body.classList.add('first-person-mode');
         btn.classList.add('active');
@@ -6384,8 +6543,9 @@ canvas.addEventListener('mousemove', (e) => {
             // 反转了deltaY的方向，使向下拖动时抬头（减小verticalAngle），向上拖动时低头（增大verticalAngle）
             verticalAngle -= deltaY * 0.01;
             
-            // 限制垂直角度范围（-85度到85度）
-            verticalAngle = Math.max(-Math.PI * 0.472, Math.min(Math.PI * 0.472, verticalAngle));
+            // 限制垂直角度范围，确保地面始终在视角下半部分
+            // 限制在 -60度 到 90度，让玩家不能低头看到地面上方太多
+            verticalAngle = Math.max(-Math.PI / 3, Math.min(Math.PI / 2, verticalAngle));
         } else {
             // 普通模式下的旋转
             rotationY += deltaX * 0.01;
@@ -6532,8 +6692,9 @@ canvas.addEventListener('touchmove', (e) => {
             // 反转了deltaY的方向，使向下拖动时抬头（减小verticalAngle），向上拖动时低头（增大verticalAngle）
             verticalAngle -= deltaY * 0.01;
             
-            // 限制垂直角度范围（-85度到85度）
-            verticalAngle = Math.max(-Math.PI * 0.472, Math.min(Math.PI * 0.472, verticalAngle));
+            // 限制垂直角度范围，确保地面始终在视角下半部分
+            // 限制在 -60度 到 90度，让玩家不能低头看到地面上方太多
+            verticalAngle = Math.max(-Math.PI / 3, Math.min(Math.PI / 2, verticalAngle));
         } else {
             // 普通模式下的旋转
             rotationY += deltaX * 0.01;
